@@ -1,0 +1,75 @@
+"""Nepali Clinical Language Layer — Devanagari preprocessing, lexicon indexing, 3-tier normalization, and OCR correction."""
+
+from backend.nlp.correct import Correction, CorrectionResult, correct
+from backend.nlp.devanagari import (
+    Token,
+    fold,
+    fold_orthography,
+    is_devanagari,
+    prepare,
+    prepare_layout,
+    strip_zero_width,
+    to_ascii_digits,
+    tokenize,
+)
+from backend.nlp.lexicon import (
+    ASSERTION_TYPES,
+    DURATION_TYPE,
+    NEGATION_TYPE,
+    Concept,
+    Lexicon,
+    Surface,
+    build_lexicon,
+    get_lexicon,
+    load_lexicon_from_file,
+    reset_lexicon_cache,
+)
+from backend.nlp.normalize import (
+    PROVENANCE_FOR_TIER,
+    UNCERTAINTY_THRESHOLD,
+    Match,
+    NormalizationResult,
+    normalize,
+)
+from backend.nlp.tier3 import (
+    GemmaTier3Matcher,
+    Tier3Decision,
+    Tier3Matcher,
+    parse_response,
+    render_prompt,
+)
+
+__all__ = [
+    "ASSERTION_TYPES",
+    "DURATION_TYPE",
+    "NEGATION_TYPE",
+    "PROVENANCE_FOR_TIER",
+    "UNCERTAINTY_THRESHOLD",
+    "Concept",
+    "Correction",
+    "CorrectionResult",
+    "GemmaTier3Matcher",
+    "Lexicon",
+    "Match",
+    "NormalizationResult",
+    "Surface",
+    "Tier3Decision",
+    "Tier3Matcher",
+    "Token",
+    "build_lexicon",
+    "correct",
+    "fold",
+    "fold_orthography",
+    "get_lexicon",
+    "is_devanagari",
+    "load_lexicon_from_file",
+    "normalize",
+    "parse_response",
+    "prepare",
+    "prepare_layout",
+    "render_prompt",
+    "reset_lexicon_cache",
+    "strip_zero_width",
+    "to_ascii_digits",
+    "tokenize",
+]
