@@ -1,0 +1,626 @@
+[
+  {
+    "id": 1,
+    "input": "ज्वरो, ३ दिन देखि",
+    "gold_concepts": [
+      "NCL-0001"
+    ],
+    "gold_negated": [],
+    "gold_duration_days": 3,
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 2,
+    "input": "खोकी र रुघा छ",
+    "gold_concepts": [
+      "NCL-0002",
+      "NCL-0003"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 3,
+    "input": "पेट दुख्ने र वाकवाकी",
+    "gold_concepts": [
+      "NCL-0005",
+      "NCL-0008"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 4,
+    "input": "पिसाब पोल्ने",
+    "gold_concepts": [
+      "NCL-0020"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 5,
+    "input": "टाइफाइड ज्वरो",
+    "gold_concepts": [
+      "NCL-0058"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 6,
+    "input": "सास फेर्न गाह्रो",
+    "gold_concepts": [
+      "NCL-0013"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 7,
+    "input": "छाती दुख्ने",
+    "gold_concepts": [
+      "NCL-0012"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 8,
+    "input": "झाडापखाला",
+    "gold_concepts": [
+      "NCL-0006"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 9,
+    "input": "रगत कल्चर",
+    "gold_concepts": [
+      "NCL-0169"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 10,
+    "input": "सीबीसी जाँच",
+    "gold_concepts": [
+      "NCL-0162"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 11,
+    "input": "मधुमेह",
+    "gold_concepts": [
+      "NCL-0059"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 12,
+    "input": "उच्च रक्तचाप",
+    "gold_concepts": [
+      "NCL-0060"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 13,
+    "input": "दम",
+    "gold_concepts": [
+      "NCL-0063"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 14,
+    "input": "छाती एक्स-रे",
+    "gold_concepts": [
+      "NCL-0178"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 15,
+    "input": "प्यारासिटामोल ५००",
+    "gold_concepts": [
+      "NCL-0088"
+    ],
+    "gold_negated": [],
+    "category": "clean_devanagari",
+    "derivation": "authored"
+  },
+  {
+    "id": 16,
+    "input": "jworo cha 3 din dekhi",
+    "gold_concepts": [
+      "NCL-0001"
+    ],
+    "gold_negated": [],
+    "gold_duration_days": 3,
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 17,
+    "input": "khoki ani rugha",
+    "gold_concepts": [
+      "NCL-0002",
+      "NCL-0003"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 18,
+    "input": "pet dukhne",
+    "gold_concepts": [
+      "NCL-0005"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 19,
+    "input": "pakhala lagyo",
+    "gold_concepts": [
+      "NCL-0006"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 20,
+    "input": "tauko dukhne",
+    "gold_concepts": [
+      "NCL-0004"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 21,
+    "input": "saas ferna garo",
+    "gold_concepts": [
+      "NCL-0013"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 22,
+    "input": "typhoid cha",
+    "gold_concepts": [
+      "NCL-0058"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 23,
+    "input": "sugar high",
+    "gold_concepts": [
+      "NCL-0025"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 24,
+    "input": "bp badheko",
+    "gold_concepts": [
+      "NCL-0060"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 25,
+    "input": "urine burning",
+    "gold_concepts": [
+      "NCL-0020"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 26,
+    "input": "body ache",
+    "gold_concepts": [
+      "NCL-0011"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 27,
+    "input": "dizzy cha",
+    "gold_concepts": [
+      "NCL-0009"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 28,
+    "input": "vomiting cha",
+    "gold_concepts": [
+      "NCL-0007"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 29,
+    "input": "cetamol khayo",
+    "gold_concepts": [
+      "NCL-0109"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 30,
+    "input": "cifran 500",
+    "gold_concepts": [
+      "NCL-0111"
+    ],
+    "gold_negated": [],
+    "category": "romanized",
+    "derivation": "authored"
+  },
+  {
+    "id": 31,
+    "input": "patient lai fever cha, khoki pani",
+    "gold_concepts": [
+      "NCL-0001",
+      "NCL-0002"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 32,
+    "input": "BP high cha ani headache",
+    "gold_concepts": [
+      "NCL-0060",
+      "NCL-0004"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 33,
+    "input": "urine burning with lower abdomen pain",
+    "gold_concepts": [
+      "NCL-0020",
+      "NCL-0005"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 34,
+    "input": "typhoid ko lagi cipro 500",
+    "gold_concepts": [
+      "NCL-0058",
+      "NCL-0089"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 35,
+    "input": "CBC report ma Hb low",
+    "gold_concepts": [
+      "NCL-0162",
+      "NCL-0163"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 36,
+    "input": "patient lai gastric problem",
+    "gold_concepts": [
+      "NCL-0065"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 37,
+    "input": "sugar high, metformin start",
+    "gold_concepts": [
+      "NCL-0025",
+      "NCL-0090"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 38,
+    "input": "chest pain but ECG normal",
+    "gold_concepts": [
+      "NCL-0012",
+      "NCL-0180",
+      "NCL-0246"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 39,
+    "input": "khutta swelling dherai",
+    "gold_concepts": [
+      "NCL-0049",
+      "NCL-0019",
+      "NCL-0237"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 40,
+    "input": "dengue NS1 positive",
+    "gold_concepts": [
+      "NCL-0067",
+      "NCL-0172"
+    ],
+    "gold_negated": [],
+    "category": "code_mixed",
+    "derivation": "authored"
+  },
+  {
+    "id": 41,
+    "input": "ज्वरो छैन",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0001"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 42,
+    "input": "ज्वरो छैन तर खोकी छ",
+    "gold_concepts": [
+      "NCL-0002"
+    ],
+    "gold_negated": [
+      "NCL-0001"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 43,
+    "input": "बान्ता भएन, पेट दुख्ने छ",
+    "gold_concepts": [
+      "NCL-0005"
+    ],
+    "gold_negated": [
+      "NCL-0007"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 44,
+    "input": "पिसाब पोल्ने छैन",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0020"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 45,
+    "input": "छाती दुख्ने छैन तर सास फेर्न गाह्रो",
+    "gold_concepts": [
+      "NCL-0013"
+    ],
+    "gold_negated": [
+      "NCL-0012"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 46,
+    "input": "खोकी छैनन्, रुघा छ",
+    "gold_concepts": [
+      "NCL-0003"
+    ],
+    "gold_negated": [
+      "NCL-0002"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 47,
+    "input": "दिसामा रगत देखिएन",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0036"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 48,
+    "input": "टाइफाइड भेटिएन",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0058"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 49,
+    "input": "सास फेर्न गाह्रो छैन",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0013"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 50,
+    "input": "history chaina diabetes ko",
+    "gold_concepts": [],
+    "gold_negated": [
+      "NCL-0059"
+    ],
+    "category": "negation",
+    "derivation": "authored"
+  },
+  {
+    "id": 51,
+    "input": "ज्वरौ",
+    "gold_concepts": [
+      "NCL-0001"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 52,
+    "input": "खोकि",
+    "gold_concepts": [
+      "NCL-0002"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 53,
+    "input": "मियादी जोरो",
+    "gold_concepts": [
+      "NCL-0058"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 54,
+    "input": "सिप्रोफ्लोक्सासीन",
+    "gold_concepts": [
+      "NCL-0089"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 55,
+    "input": "प्यारासिटामल",
+    "gold_concepts": [
+      "NCL-0088"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 56,
+    "input": "सिबिसि",
+    "gold_concepts": [
+      "NCL-0162"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 57,
+    "input": "पिसाव पोल्ने",
+    "gold_concepts": [
+      "NCL-0020"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 58,
+    "input": "छाति एक्स रे",
+    "gold_concepts": [
+      "NCL-0178"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 59,
+    "input": "मधुमेह्",
+    "gold_concepts": [
+      "NCL-0059"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  },
+  {
+    "id": 60,
+    "input": "उच्च रक्त चाप",
+    "gold_concepts": [
+      "NCL-0060"
+    ],
+    "gold_negated": [],
+    "category": "ocr_corrupted",
+    "derivation": "synthetic_perturbation"
+  }
+]

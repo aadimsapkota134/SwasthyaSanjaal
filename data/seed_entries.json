@@ -1,0 +1,78 @@
+[
+  {
+    "id": "entry_rx_typhoid_01",
+    "patient_id": "patient_ram",
+    "input_type": "image",
+    "document_class": "prescription",
+    "facility_name": "धुलिखेल अस्पताल",
+    "record_date": "2026-07-28",
+    "record_date_bs": "२०८३ साउन १२",
+    "asset_path": "data/demo_assets/prescription_01.jpg",
+    "raw_transcript": "टाइफाइड ज्वरोको लागि सिप्रोफ्लोक्सासिन ५००एमजी दिनको दुई पटक ७ दिन। ज्वरो भए प्यारासिटामोल ५००एमजी।",
+    "concepts": [
+      "NCL-0058",
+      "NCL-0089",
+      "NCL-0088",
+      "NCL-0228",
+      "NCL-0236"
+    ],
+    "icd11_code": "1A07",
+    "icd10_code": "A01.0",
+    "icd_link_status": "PENDING_LOCAL_WHO_VERIFICATION",
+    "meaning_np": "तपाईंलाई टाइफाइड ज्वरो (Typhoid Fever) को उपचारका लागि सिप्रोफ्लोक्सासिन (Ciprofloxacin) दिइएको छ। ज्वरो आएमा प्यारासिटामोल (Paracetamol) खान भनिएको छ। यो जानकारी मात्र हो। डाक्टरको सल्लाह लिनुहोस्।",
+    "synthetic": true
+  },
+  {
+    "id": "entry_lab_01",
+    "patient_id": "patient_ram",
+    "input_type": "pdf",
+    "document_class": "lab_report",
+    "facility_name": "Dhulikhel Hospital",
+    "record_date": "2026-07-26",
+    "record_date_bs": "२०८३ साउन १०",
+    "asset_path": "data/demo_assets/lab_report_01.pdf",
+    "raw_transcript": "CBC: WBC 12,400; Hb 13.2; Platelet 185,000. Blood culture pending.",
+    "concepts": [
+      "NCL-0162",
+      "NCL-0163",
+      "NCL-0190",
+      "NCL-0169"
+    ],
+    "synthetic": true
+  },
+  {
+    "id": "entry_voice_negation_01",
+    "patient_id": "patient_ram",
+    "input_type": "voice",
+    "document_class": "note",
+    "facility_name": "Self report",
+    "record_date": "2026-07-28",
+    "record_date_bs": "२०८३ साउन १२",
+    "asset_path": "data/demo_assets/voice_note_01.webm",
+    "raw_transcript": "ज्वरो छैन तर खोकी छ।",
+    "concepts": [
+      "NCL-0002"
+    ],
+    "negated_concepts": [
+      "NCL-0001"
+    ],
+    "synthetic": true
+  },
+  {
+    "id": "entry_bill_01",
+    "patient_id": "patient_ram",
+    "input_type": "image",
+    "document_class": "bill",
+    "facility_name": "धुलिखेल अस्पताल",
+    "record_date": "2026-07-28",
+    "record_date_bs": "२०८३ साउन १२",
+    "asset_path": "data/demo_assets/bill_01.jpg",
+    "raw_transcript": "Blood culture, injection, service charge",
+    "concepts": [
+      "NCL-0169"
+    ],
+    "benefit_matches": [],
+    "benefit_note": "Benefit-package rows must be extracted from the official HIB PDF with source pages before demo use.",
+    "synthetic": true
+  }
+]

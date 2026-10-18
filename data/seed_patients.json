@@ -1,0 +1,66 @@
+[
+  {
+    "id": "patient_ram",
+    "name": "Ram Bahadur Shrestha",
+    "name_np": "राम बहादुर श्रेष्ठ",
+    "age": 42,
+    "dob": "1984-08-12",
+    "gender": "male",
+    "gender_np": "पुरुष",
+    "district": "Kavrepalanchok",
+    "blood_group": "B+",
+    "sanjaal_id": "SS-NP-8841",
+    "sanchai_id": "SANCHAI-8841",
+    "arogya_id": "AK-NP-8841",
+    "allergies": [
+      {
+        "substance_en": "Penicillin",
+        "substance_np": "पेनिसिलिन",
+        "severity": "severe"
+      }
+    ],
+    "synthetic": true
+  },
+  {
+    "id": "patient_maya",
+    "name": "Maya Tamang",
+    "name_np": "माया तामाङ",
+    "age": 31,
+    "dob": "1995-03-01",
+    "gender": "female",
+    "gender_np": "महिला",
+    "district": "Sindhupalchok",
+    "blood_group": "O+",
+    "sanjaal_id": "SS-NP-5520",
+    "sanchai_id": "SANCHAI-5520",
+    "arogya_id": "AK-NP-5520",
+    "allergies": [],
+    "synthetic": true
+  },
+  {
+    "id": "patient_sita",
+    "name": "Sita Karki",
+    "name_np": "सीता कार्की",
+    "age": 58,
+    "dob": "1968-11-23",
+    "gender": "female",
+    "gender_np": "महिला",
+    "district": "Kathmandu",
+    "blood_group": "A+",
+    "sanjaal_id": "SS-NP-1194",
+    "sanchai_id": "SANCHAI-1194",
+    "arogya_id": "AK-NP-1194",
+    "allergies": [
+      {
+        "substance_en": "Sulfa drugs",
+        "substance_np": "सल्फा औषधि",
+        "severity": "moderate"
+      }
+    ],
+    "chronic_conditions": [
+      "NCL-0059",
+      "NCL-0060"
+    ],
+    "synthetic": true
+  }
+]
