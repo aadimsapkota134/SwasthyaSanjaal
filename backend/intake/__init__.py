@@ -1,0 +1,55 @@
+"""Multimodal Intake Pipeline (Document OCR, Digital PDF, Speech ASR, and Clinical Text)."""
+
+from backend.intake.documents import (
+    CLASS_BILL,
+    CLASS_FCHV_ASSESSMENT,
+    CLASS_LAB_REPORT,
+    CLASS_NOTE,
+    CLASS_PRESCRIPTION,
+    Classification,
+    PdfText,
+    classify_document,
+    extract_pdf_text,
+    render_pdf_page,
+)
+from backend.intake.pipeline import (
+    INPUT_IMAGE,
+    INPUT_PDF,
+    INPUT_TEXT,
+    INPUT_VOICE,
+    IntakeEvent,
+    IntakeResult,
+    Note,
+    Upload,
+    collect,
+    run_intake,
+    run_speech_intake,
+)
+from backend.intake.storage import extension_for, resolve_upload, save_upload
+
+__all__ = [
+    "CLASS_BILL",
+    "CLASS_FCHV_ASSESSMENT",
+    "CLASS_LAB_REPORT",
+    "CLASS_NOTE",
+    "CLASS_PRESCRIPTION",
+    "INPUT_IMAGE",
+    "INPUT_PDF",
+    "INPUT_TEXT",
+    "INPUT_VOICE",
+    "Classification",
+    "IntakeEvent",
+    "IntakeResult",
+    "Note",
+    "PdfText",
+    "Upload",
+    "classify_document",
+    "collect",
+    "extension_for",
+    "extract_pdf_text",
+    "render_pdf_page",
+    "resolve_upload",
+    "run_intake",
+    "run_speech_intake",
+    "save_upload",
+]
