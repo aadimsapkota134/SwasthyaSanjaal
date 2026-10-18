@@ -795,3 +795,39 @@ Human-confirmed health information
 The central deliverable is therefore:
 
 **unstructured Nepali clinical input → structured, reviewable, reusable health information**
+
+---
+
+## Documentation Suite & Quickstart
+
+All technical specifications, research plans, dataset schemas, and ablation records live in [`docs/`](./docs/) and [`data/`](./data/):
+
+| Document | Scope |
+|---|---|
+| [`docs/00-MASTER-DOCUMENTATION.md`](./docs/00-MASTER-DOCUMENTATION.md) | **Single Source of Truth**: Full 37-section + 6-appendix Master Specification covering Bodh (`बोध`), SwasthyaSanjaal (`स्वास्थ्य सञ्जाल`), 3-tier normalization, uncertainty propagation, Frogtoberfest plan, and the January 2027 research paper trajectory |
+| [`docs/01-RESEARCH-DOSSIER.md`](./docs/01-RESEARCH-DOSSIER.md) | Nepal digital health ecosystem audit (DoHS HMIS, DHIS2, Bahmni, OpenIMIS), WHO CB-IMNCI workflow analysis, and the Nepali clinical NLP gap |
+| [`docs/02-ARCHITECTURE.md`](./docs/02-ARCHITECTURE.md) | End-to-end pipeline architecture, Devanagari script folding, RapidFuzz thresholds, per-field confidence formula, SQLite schema, and HL7 FHIR R4 mapping |
+| [`docs/03-EVALUATION-NEPCLINBENCH.md`](./docs/03-EVALUATION-NEPCLINBENCH.md) | **NepClinBench** 60-item benchmark results, 3-Tier Cascade vs. Raw LLM ablation metrics, and multi-annotator roadmap (`NepClinBench v1.0`) |
+| [`docs/04-DATA-AND-LEXICON-SPEC.md`](./docs/04-DATA-AND-LEXICON-SPEC.md) | Complete specification of the 300-concept Nepali Clinical Lexicon, ICD-10/ICD-11/SNOMED-CT/ATC crosswalks, synthetic encounter records, and demo assets |
+| [`docs/05-AI-AND-PROMPTS.md`](./docs/05-AI-AND-PROMPTS.md) | Dual-tier Gemma 4 inference engine (`26B-A4B-it` / `31B-it`), versioned clinical prompts (`OCR_EXTRACT_V1`, `SPEECH_EXTRACT_V1`, `LEXICON_MATCH_V1`), and deterministic fallback contracts |
+| [`docs/06-CODEBASE-REFERENCE.md`](./docs/06-CODEBASE-REFERENCE.md) | Module-by-module engineering guide (`backend/nlp`, `backend/intake`, `backend/eval`, `backend/record`, `backend/ai`, `backend/main.py`, and `tests/`) |
+| [`docs/07-BUILD-AND-ABLATION-RECORD.md`](./docs/07-BUILD-AND-ABLATION-RECORD.md) | Empirical verification log, 51-test verification suite breakdown, and item-level ablation proof |
+| [`data/DATASHEET.md`](./data/DATASHEET.md) | Gebru et al. (2021) Datasheet for the Nepali Clinical Lexicon (`v0.2.0`) and NepClinBench |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Frogtoberfest 2026 contributor workflow, lexicon entry checklist, and PR verification requirements |
+
+### Quickstart Commands
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Run the 51-test verification suite (lexicon, normalizer, OCR/PDF, speech, FHIR R4, evaluation)
+pytest -q
+
+# 3. Execute the 60-item NepClinBench evaluation & Raw-LLM ablation harness
+python -m backend.eval.evaluator
+
+# 4. Launch the FastAPI service for the Nepali Clinical Language Layer
+uvicorn backend.main:app --reload --port 8000
+```
+
