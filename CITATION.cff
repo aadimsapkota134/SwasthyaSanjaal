@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use SwasthyaSanjaal, the Nepali Clinical Lexicon, or NepClinBench in your academic research, please cite this work as follows."
+title: "SwasthyaSanjaal: A Nepali Clinical Language Layer for Structured Health Information"
+abstract: "A clinical NLP conversion layer for transforming handwritten prescriptions, Devanagari documents, Romanized notes, code-mixed Nepali-English text, and community health assessments into structured, reviewable, and interoperable HL7 FHIR R4 clinical records."
+authors:
+  - family-names: "Sapkota"
+    given-names: "Aaditya"
+    orcid: ""
+date-released: 2026-10-18
+url: "https://github.com/aadimsapkota134/SwasthyaSanjaal"
+repository-code: "https://github.com/aadimsapkota134/SwasthyaSanjaal"
+license: "Apache-2.0"
+keywords:
+  - "clinical-nlp"
+  - "health-informatics"
+  - "nepali-language"
+  - "low-resource-nlp"
+  - "clinical-lexicon"
+  - "zero-hallucination"
+  - "fhir-r4"
+  - "uncertainty-quantification"
+preferred-citation:
+  type: software
+  title: "SwasthyaSanjaal: A Nepali Clinical Language Layer for Structured Health Information"
+  authors:
+    - family-names: "Sapkota"
+      given-names: "Aaditya"
+  year: 2026
+  url: "https://github.com/aadimsapkota134/SwasthyaSanjaal"
