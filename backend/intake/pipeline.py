@@ -76,15 +76,71 @@ class IntakeResult:
     unverified: tuple[str, ...] = ()
     asset_path: str | None = None
     pages: int | None = None
+    asr_confidence: float | None = None
     notes: list[Note] = field(default_factory=list)
     normalized: NormalizationResult | None = None
 
     def to_response(self, lexicon: Lexicon) -> IntakeResponse:
+        from backend.schemas import FieldUncertainty
+
         norm_resp = (
             NormalizeResponse.from_result(self.normalized, lexicon)
             if self.normalized is not None
             else None
         )
+        uncertainties: list[FieldUncertainty] = []
+        if norm_resp is not None:
+            for c in norm_resp.concepts:
+                conf = c.confidence
+                if self.asr_confidence is not None:
+                    conf = round(min(conf, self.asr_confidence), 4)
+                req_conf = c.confirmation_required or conf < UNCERTAINTY_THRESHOLD
+                field_label = "medication" if c.concept_type.startswith("drug") else "symptom"
+                reason = (
+                    "Low ASR acoustic confidence"
+                    if (self.asr_confidence is not None and self.asr_confidence < UNCERTAINTY_THRESHOLD)
+                    else ("Fuzzy/LLM match requires verification" if req_conf else "High-confidence lexicon match")
+                )
+                uncertainties.append(
+                    FieldUncertainty(
+                        field=field_label,
+                        value=c.canonical_np,
+                        confidence=conf,
+                        confirmation_required=req_conf,
+                        reason=reason,
+                    )
+                )
+            if norm_resp.duration_days is not None:
+                dur_conf = round(min(0.95, self.asr_confidence or 0.95), 4)
+                uncertainties.append(
+                    FieldUncertainty(
+                        field="duration",
+                        value=f"{norm_resp.duration_days} दिन",
+                        confidence=dur_conf,
+                        confirmation_required=dur_conf < UNCERTAINTY_THRESHOLD,
+                        reason="Extracted clinical duration modifier",
+                    )
+                )
+            if norm_resp.severity is not None:
+                sev_conf = round(min(0.90, self.asr_confidence or 0.90), 4)
+                uncertainties.append(
+                    FieldUncertainty(
+                        field="severity",
+                        value=norm_resp.severity,
+                        confidence=sev_conf,
+                        confirmation_required=sev_conf < UNCERTAINTY_THRESHOLD,
+                        reason="Extracted clinical severity modifier",
+                    )
+                )
+
+        confirmation_required = (
+            self.extraction_status != STATUS_OK
+            or (self.asr_confidence is not None and self.asr_confidence < UNCERTAINTY_THRESHOLD)
+            or bool(self.unverified)
+            or (norm_resp is not None and norm_resp.confirmation_required)
+            or any(u.confirmation_required for u in uncertainties)
+        )
+
         return IntakeResponse(
             raw_transcript=self.raw_transcript,
             corrected_text=self.corrected_text,
@@ -107,6 +163,9 @@ class IntakeResult:
             unverified=list(self.unverified),
             asset_path=self.asset_path,
             pages=self.pages,
+            asr_confidence=self.asr_confidence,
+            confirmation_required=confirmation_required,
+            field_uncertainties=uncertainties,
             notes=[
                 InlineNote(
                     level=n.level,
@@ -382,6 +441,7 @@ def run_speech_intake(
         document_class_evidence=(f"speaker:{speaker_role}",),
         corrections=corrections,
         unverified=unverified,
+        asr_confidence=asr_confidence,
         notes=notes,
         normalized=normalized,
     )

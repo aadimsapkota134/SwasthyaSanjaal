@@ -86,11 +86,13 @@ class NormalizedConcept(BaseModel):
 
 class FieldUncertainty(BaseModel):
     """Field-level uncertainty representation separating certainty across clinical fields."""
+    field: str | None = None
     value: Any
     confidence: float
     resolution_method: str = "LEXICON"
     confirmation_required: bool = False
     confirmation_prompt_np: str | None = None
+    reason: str | None = None
 
 
 class NormalizeRequest(BaseModel):
@@ -113,6 +115,7 @@ class NormalizeResponse(BaseModel):
     frequency_per_day: int | None = None
     severity: str | None = None
     requires_confirmation: bool = False
+    confirmation_required: bool = False
     field_uncertainty: dict[str, FieldUncertainty] = Field(default_factory=dict)
     unmatched: list[str] = Field(default_factory=list)
     tier_counts: dict[int, int] = Field(default_factory=dict)
@@ -128,6 +131,7 @@ class NormalizeResponse(BaseModel):
         primary_symptom = next((c for c in concepts if c.concept_type in {"symptom", "condition"}), None)
         if primary_symptom:
             field_unc["symptom"] = FieldUncertainty(
+                field="symptom",
                 value=primary_symptom.canonical_en.lower(),
                 confidence=primary_symptom.confidence,
                 resolution_method=primary_symptom.resolution_method,
@@ -136,6 +140,7 @@ class NormalizeResponse(BaseModel):
             )
         if result.duration_days is not None:
             field_unc["duration"] = FieldUncertainty(
+                field="duration",
                 value=f"{result.duration_days} days",
                 confidence=0.95,
                 resolution_method="LEXICON",
@@ -145,12 +150,14 @@ class NormalizeResponse(BaseModel):
             sev_match = next((c for c in concepts if c.concept_type == "severity"), None)
             sev_conf = sev_match.confidence if sev_match else 0.78
             field_unc["severity"] = FieldUncertainty(
+                field="severity",
                 value=result.severity,
                 confidence=sev_conf,
                 resolution_method=sev_match.resolution_method if sev_match else "LEXICON",
                 confirmation_required=sev_conf < 0.85,
             )
 
+        req_conf = any(c.confirmation_required for c in concepts)
         return cls(
             text=result.text,
             prepared_text=result.prepared_text,
@@ -159,7 +166,8 @@ class NormalizeResponse(BaseModel):
             duration_days=result.duration_days,
             frequency_per_day=result.frequency_per_day,
             severity=getattr(result, "severity", None),
-            requires_confirmation=any(c.confirmation_required for c in concepts),
+            requires_confirmation=req_conf,
+            confirmation_required=req_conf,
             field_uncertainty=field_unc,
             unmatched=result.unmatched,
             tier_counts=result.tier_counts(),
@@ -245,6 +253,9 @@ class IntakeResponse(BaseModel):
     unverified: list[str] = Field(default_factory=list)
     asset_path: str | None = None
     pages: int | None = None
+    asr_confidence: float | None = None
+    confirmation_required: bool = False
+    field_uncertainties: list[FieldUncertainty] = Field(default_factory=list)
     notes: list[InlineNote] = Field(default_factory=list)
     normalized: NormalizeResponse | None = None
 

@@ -106,14 +106,12 @@ def intake_text(payload: IntakeRequest) -> IntakeResponse:
 def intake_speech(payload: SpeechIntakeRequest) -> IntakeResponse:
     """Nepali Speech Pipeline: processes spoken FCHV or patient ASR transcripts with acoustic uncertainty propagation."""
     return _respond(
-        collect(
-            run_speech_intake(
-                transcript=payload.transcript,
-                asr_confidence=payload.asr_confidence,
-                speaker_role=payload.speaker_role,
-                use_model=payload.use_model,
-                apply_correction=payload.correct,
-            )
+        run_speech_intake(
+            transcript=payload.transcript,
+            asr_confidence=payload.asr_confidence,
+            speaker_role=payload.speaker_role,
+            use_model=payload.use_model,
+            apply_correction=payload.correct,
         )
     )
 
