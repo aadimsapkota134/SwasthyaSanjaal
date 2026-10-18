@@ -1,0 +1,16 @@
+Match this Nepali clinical term to ONE concept from the candidate list.
+
+TERM:
+{term}
+
+CANDIDATES (tab-separated: concept_id, Nepali, English, type):
+{candidates}
+
+Rules:
+- Return a `concept_id` from the candidate list, or `UNKNOWN`.
+- Never invent a concept ID.
+- If the term is ambiguous, prefer the patient-register concept.
+- Keep reasoning brief and factual.
+
+Return JSON only:
+{"concept_id":"NCL-#### or UNKNOWN","confidence":0.0,"reasoning":"..."}

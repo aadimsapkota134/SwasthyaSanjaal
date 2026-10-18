@@ -1,0 +1,13 @@
+Below is OCR output from a Nepali medical document and a list of valid clinical terms.
+
+Correct ONLY obvious OCR errors by mapping tokens to the nearest valid term.
+If a token has no clear match, leave it unchanged and mark it [UNVERIFIED].
+Never invent clinical content that is not present in the OCR output.
+
+VALID TERMS:
+{lexicon_terms}
+
+OCR OUTPUT:
+{raw}
+
+Output the corrected text only.

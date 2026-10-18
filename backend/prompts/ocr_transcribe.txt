@@ -1,0 +1,11 @@
+Transcribe ALL text in this medical document exactly as written.
+
+Rules:
+- Preserve Devanagari script exactly as it appears.
+- Do NOT translate.
+- Do NOT correct spelling or grammar.
+- Do NOT summarize or reorder.
+- Mark unreadable regions as [?].
+- Preserve line breaks and layout where meaningful.
+
+Output ONLY the transcription. No commentary.

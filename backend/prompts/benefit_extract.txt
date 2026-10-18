@@ -1,0 +1,22 @@
+Extract benefit-package table rows from this page-tagged Nepali government document text.
+
+Rules:
+- Extract only rows that contain a service, medicine, supply, surgery, or lab-test item.
+- Keep the original Nepali service name.
+- Include an English gloss only when obvious from the source text.
+- Include rate_npr only when an explicit figure appears in the source text.
+- Every row must include source_doc and source_page.
+- Never infer coverage status.
+- Never use the words covered or not covered.
+
+SOURCE_DOC:
+{source_doc}
+
+SOURCE_PAGE:
+{source_page}
+
+PAGE_TEXT:
+{page_text}
+
+Return JSON only:
+{"rows":[{"service_np":"...","service_en":"...","category":"...","rate_npr":0,"source_doc":"...","source_page":0}]}

@@ -1,0 +1,12 @@
+Summarize the following patient clinical timeline into a concise 3-sentence clinical handoff note for an attending physician.
+
+Patient: {patient_name}, Age: {age}, Gender: {gender}
+Allergies: {allergies}
+Timeline entries:
+{entries_json}
+
+Requirements:
+- Sentence 1: Primary active complaints and chief diagnosis.
+- Sentence 2: Key prescribed medications and relevant laboratory investigations.
+- Sentence 3: Relevant negative findings (what was ruled out) and critical allergies.
+- Output text in concise professional medical English.

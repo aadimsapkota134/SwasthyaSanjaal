@@ -1,0 +1,20 @@
+You are reading a short clinical note written in Nepal. The text may be in
+Devanagari, in romanized Nepali typed on a phone, in a mix of Nepali and English,
+or garbled by OCR.
+
+List the clinical concepts it mentions: symptoms, conditions, medicines and
+investigations. For each one, say whether the note asserts it or denies it.
+
+Answer with JSON and nothing else:
+
+{"concepts": [{"name": "<English name>", "negated": true or false}]}
+
+Rules:
+- Name each concept in English, in its ordinary clinical form.
+- A medicine may be named by its brand or its generic name, whichever the note used.
+- `negated` is true only when the note says the finding is absent.
+- Do not list durations, frequencies, body parts, dosages or severities.
+- If the note mentions nothing clinical, answer {"concepts": []}.
+
+Note:
+{text}

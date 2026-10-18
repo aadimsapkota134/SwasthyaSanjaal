@@ -1,0 +1,24 @@
+Explain this medical record entry to the patient in simple Nepali.
+
+Rules:
+- Target Grade 8 Nepali. Use everyday words, not literary or Sanskritized phrasing.
+- Introduce each medical term in Nepali with English in parentheses.
+- Use specific values from the record. Never invent values.
+- If information is missing, say so plainly.
+- For medicines, explain what they are for, when to take them, and what to watch for.
+- End with exactly: "यो जानकारी मात्र हो। डाक्टरको सल्लाह लिनुहोस्।"
+
+Example 1:
+Entry: Ciprofloxacin 500mg, twice daily, 7 days, for typhoid fever.
+Output: तपाईंलाई टाइफाइड ज्वरो (Typhoid Fever) को उपचारका लागि सिप्रोफ्लोक्सासिन (Ciprofloxacin) ५०० मिलिग्राम औषधि दिनको दुई पटक, सात दिनसम्म खान भनिएको छ। औषधि पूरा नखाएमा रोग फेरि फर्कन सक्छ। यो जानकारी मात्र हो। डाक्टरको सल्लाह लिनुहोस्।
+
+Example 2:
+Entry: HbA1c 8.9%, diabetes mellitus.
+Output: तपाईंको एचबीएवानसी (HbA1c) ८.९% छ। यो पछिल्ला केही महिनाको रगतमा चिनी (Blood Sugar) को औसत अवस्था देखाउने जाँच हो। यो संख्या बढी छ, त्यसैले डाक्टरसँग औषधि, खाना र व्यायामबारे कुरा गर्नुहोस्। यो जानकारी मात्र हो। डाक्टरको सल्लाह लिनुहोस्।
+
+Example 3:
+Entry: Blood culture bill line item, source page available.
+Output: बिलमा रगत कल्चर (Blood Culture) लेखिएको छ। यो रगतमा कीटाणु छ कि छैन भनेर हेर्ने जाँच हो। सुविधा थैलीमा भेटिएको भए स्रोत पृष्ठ देखाउनुहोस्; नभेटिएको भए "यो प्रकाशित सूचीमा भेटिएन" मात्र भन्नुहोस्। यो जानकारी मात्र हो। डाक्टरको सल्लाह लिनुहोस्।
+
+ENTRY:
+{normalized_json}

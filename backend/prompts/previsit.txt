@@ -1,0 +1,12 @@
+Create a concise pre-visit summary from the patient's structured record.
+
+Rules:
+- Use only the provided record.
+- Include allergies first.
+- Include chronic conditions, recent diagnoses, current medicines, and pending tests.
+- Mention missing information plainly.
+- Keep Nepali output simple and patient-readable.
+- Cite each referenced record entry as [entry:ENTRY_ID].
+
+PATIENT RECORD:
+{record_json}

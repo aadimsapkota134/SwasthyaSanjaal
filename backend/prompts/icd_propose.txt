@@ -1,0 +1,13 @@
+Map the diagnosis mention to the most likely ICD-11 MMS code.
+
+DIAGNOSIS:
+{diagnosis}
+
+Rules:
+- Return exactly one ICD-11 code candidate when confident.
+- Return UNKNOWN when the text is not a diagnosis.
+- Do not include treatment advice.
+- Do not invent a code.
+
+Return JSON only:
+{"icd11_code":"...","label":"...","confidence":0.0,"reasoning":"..."}
