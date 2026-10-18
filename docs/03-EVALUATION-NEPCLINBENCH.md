@@ -1,26 +1,28 @@
-# 03 — NepClinBench Evaluation & Ablation Report
+# 03 — NepClinBench Evaluation, Research Questions & Paper Plan
 
-## 1. Benchmark Design (`data/nepclinbench.json`)
+> **Companion to [`docs/00-MASTER-DOCUMENTATION.md`](00-MASTER-DOCUMENTATION.md) (§25–§29).**
 
-**NepClinBench** is a 60-item gold-annotated clinical normalization benchmark designed to stress-test Nepali clinical concept extraction across five real-world categories (12 items per category):
+## 1. NepClinBench Specification (`data/nepclinbench.json`)
 
-1. **`clean_devanagari` (12 items)**: Standard Devanagari clinical complaints, prescriptions, and chronic disease notes.
-2. **`romanized` (12 items)**: Informal Romanized Nepali (`"malai 3 din dekhi jwaro ra khoki chha"`, `"pisaab polne ra tala pet dukhne"`).
-3. **`code_mixed` (12 items)**: Nepali-English clinical shorthand (`"Tab Sitamol 500mg दिनको २ पटक"`, `"BP high छ, Amlod 5mg बिहान खानु"`).
-4. **`negation` (10–12 items)**: Post-positional Nepali negation (`"ज्वरो छैन"`, `"खोकी छ तर छाती दुख्ने छैन"`) and pre-positional English negation (`"no fever, mild cough"`), testing clause-bounded scope.
-5. **`ocr_corrupted` (12 items)**: Realistic Devanagari vowel/conjunct/sibilant OCR corruptions (`"ज्वरो र खोकि छ"`, `"सिटामोल ५०० एमजि"`).
+**NepClinBench** is a 60-item gold-annotated benchmark evaluating clinical normalization and extraction across five realistic Nepali input classes (12 items per category):
+
+| Category | Count | Example Input | Target Phenomenon |
+|---|---|---|---|
+| `clean_devanagari` | 12 | `"ज्वरो, ३ दिन देखि"` | Colloquial & formal Devanagari symptoms, durations, and chronic conditions |
+| `romanized` | 12 | `"malai 3 din dekhi jwaro ra khoki chha"` | Informal phonetic Latin transliteration used in SMS and mobile notes |
+| `code_mixed` | 12 | `"Tab Sitamol 500mg दिनको २ पटक"` | Bilingual Nepali–English prescriptions and brand-to-generic linking |
+| `negation` | 12 | `"खोकी छ तर छाती दुख्ने छैन"` | Post-positional Nepali negation (`छैन`, `नभएको`) and clause boundaries |
+| `ocr_corrupted` | 12 | `"ज्वरो र खोकि छ"` | Matra, conjunct, and sibilant corruptions typical of Devanagari OCR |
 
 ---
 
 ## 2. Reproducible Benchmark Results
 
-Run the benchmark locally via:
+Execute the evaluation suite via:
 
 ```bash
 python -m backend.eval
 ```
-
-### Summary Metrics (Deterministic 3-Tier Lexicon Engine)
 
 | Metric | Score | Notes |
 |---|---|---|
@@ -32,15 +34,32 @@ python -m backend.eval
 | **Duration Extraction** | **2 / 2 (100.0%)** | Exact integer day extraction across Devanagari and Romanized numerals |
 | **Brand $\rightarrow$ Generic** | **100.0%** | Every matched `drug_brand` resolves to its canonical `drug_generic` parent |
 
-### Audit of Contested Items (`#39` and `#40`)
+### Error Analysis & Contested Items (`#39` and `#40`)
 
-Rather than tuning rules to overfit 100% on the benchmark, NepClinBench preserves two genuinely contested code-mixed items (`#39` and `#40`) where colloquial shorthand overlaps with underspecified gold annotations. Inspecting them via `python -m backend.eval` demonstrates that the normalizer errs on the side of **precision (`1.0000`)**—never inventing unstated diagnoses.
+In accordance with §26–§27 of the Master Documentation (*"Report like a paper, not a pitch. Include the bad numbers."*):
+- All matches in the deterministic run (`use_model=False`) come from Tiers 1 and 2 (`model_share = 0.0%`).
+- The two non-exact items (`#39` and `#40` in `code_mixed`) are contested shorthand labels where the normalizer abstains (`missed`, zero `spurious`), preserving `1.0000` precision and routing unmatched spans to the uncertainty/confirmation layer rather than guessing.
 
 ---
 
-## 3. Ablation Study: Curated Lexicon vs. Unconstrained LLM
+## 3. Research Questions (§28)
 
-Running `python -m backend.eval --compare` compares SwasthyaSanjaal's 3-tier lexicon normalizer against unconstrained Gemma 4 extraction (`backend/eval/baseline.py` using `backend/prompts/baseline_extract.txt`) mapped back to the lexicon at a generous `0.80` fuzzy threshold:
+1. **RQ1 (Vocabulary Normalization)**: How accurately can messy Nepali clinical expressions be normalized into a controlled clinical vocabulary (`NCL`)?
+2. **RQ2 (Tier Ablation)**: How much do Tier 1 exact matching (`LEXICON`), Tier 2 orthography/fuzzy matching (`FUZZY_MATCH`), and Tier 3 constrained model matching (`LLM`) contribute individually?
+3. **RQ3 (Negation Preservation)**: How reliably does directional windowing preserve clinical negation across post-positional Nepali (`छैन`, `नभएको`) and pre-positional English (`no`, `without`)?
+4. **RQ4 (Brand-to-Generic Linking)**: How accurately can commercial pharmaceutical brands in Nepal (`सिटामोल`, `Glycomet`, `Ecosprin`) be resolved to generic compounds?
+5. **RQ5 (Devanagari Clinical OCR)**: How well do open-source vision-language models + lexicon-constrained correction transcribe handwritten or scanned Nepali clinical documents without inventing text?
+6. **RQ6 (Clinical ASR Domain Shift)**: How much does general-domain Nepali ASR degrade on spoken clinical assessments (FCHV / patient speech), and how does domain-adaptive fine-tuning affect WER/CER?
+7. **RQ7 (Per-Field Uncertainty & Confirmation)**: Does field-level uncertainty estimation (`FieldUncertainty`) catch downstream extraction errors and reduce false-acceptance rates via human confirmation?
+8. **RQ8 (Cross-Script Robustness)**: How does extraction performance vary across clean Devanagari, Romanized Nepali, code-mixed Nepali–English, OCR-corrupted text, and speech transcripts?
 
-- **SwasthyaSanjaal (3-Tier Lexicon)**: `58/60 (96.7%)` exact match, **`1.0000` precision**, `0` out-of-vocabulary hallucinations, `< 5 ms` per item on CPU.
-- **Unconstrained LLM Baseline**: Suffers from vocabulary drift (inventing non-standard English/Nepali paraphrases), misses local Nepali pharmaceutical brands (`सिटामोल`, `ग्लाइकोमेट`, `एमलोवास्क`), and occasionally inverts clause-bounded Nepali negation (`छ तर ... छैन`).
+---
+
+## 4. Paper Plan (§29)
+
+- **Working Title**: *Bodh: Uncertainty-Aware Structured Extraction from Nepali Clinical Language*
+- **Contributions**:
+  1. **The Nepali Clinical Lexicon (NCL)** — 300-concept open resource (CC-BY-4.0) with Devanagari, Romanized, code-mixed, and Nepal brand-name coverage.
+  2. **Lexicon-Grounded Extraction with Per-Field Uncertainty** — 3-tier constrained normalization, provenance logging, and Nepali confirmation prompts.
+  3. **NepClinBench** — Multi-category evaluation benchmark and ablation harness (`python -m backend.eval --compare`).
+  4. **Empirical Analysis** — Error analysis across orthographic drift, code-mixing, OCR degradation, and ASR confidence propagation.

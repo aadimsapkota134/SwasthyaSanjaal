@@ -1,70 +1,85 @@
-# Datasheet: Nepali Clinical Lexicon and NepClinBench
+# Datasheet: Nepali Clinical Lexicon (NCL) and NepClinBench
 
-## Motivation
+Following the *Datasheets for Datasets* (Gebru et al., 2021) standard and **Appendix C** of [`docs/00-MASTER-DOCUMENTATION.md`](../docs/00-MASTER-DOCUMENTATION.md), this document records the motivation, composition, collection process, preprocessing, intended uses, distribution, maintenance, and known gaps of the **SwasthyaSanjaal** clinical language resources.
 
-Existing Nepali NLP resources (e.g., NepBERTa, NepaliGPT, IndicBench) are predominantly derived from news-domain and web corpora. `SwasthyaSanjaal` builds the **Nepali Clinical Language Layer** to support clinical language normalization across handwritten prescriptions, Devanagari documents, Romanized phonetic notes, code-mixed Nepali-English expressions, OCR-corrupted text, and spoken community-health assessments.
+---
 
-## Composition
+## 1. Motivation
 
-- `nepali_clinical_lexicon.json` — 300 bilingual clinical concepts (`NCL-0001` through `NCL-0300`)
-- `nepali_clinical_lexicon.csv` — Tabular CSV export of the controlled clinical lexicon
-- `icd_crosswalk.csv` — WHO ICD-11 and ICD-10 diagnostic code crosswalk
-- `nepclinbench.json` — 60 gold-standard evaluation benchmark items across 5 linguistic and degradation categories
+Existing Nepali NLP corpora and models (e.g., NepBERTa, IRIISNepal Nepali-Text-Corpus, NepaliGPT, IndicBench) are built almost entirely from news journalism and general web text. None cover clinical terminology, colloquial symptom expressions, Romanized clinic shorthand, or commercial pharmaceutical brand names prescribed in Nepal.
+
+**SwasthyaSanjaal** (open-source layer **Bodh · बोध**) introduces the **Nepali Clinical Lexicon (NCL)** and **NepClinBench** to ground clinical extraction in a curated, auditable vocabulary where every match carries explicit provenance (`LEXICON`, `FUZZY_MATCH`, `LLM`) and per-field uncertainty.
+
+---
+
+## 2. Composition
+
+- **`data/nepali_clinical_lexicon.json` & `.csv`** — 300 bilingual clinical concepts (`NCL-0001` through `NCL-0300`).
+- **`data/icd_crosswalk.csv`** — Crosswalk mapping clinical conditions and symptoms to WHO ICD-11 MMS and ICD-10 codes.
+- **`data/nepclinbench.json`** — 60 gold-annotated evaluation items across 5 input categories (`clean_devanagari`, `romanized`, `code_mixed`, `negation`, `ocr_corrupted`).
+- **`data/seed_patients.json` & `data/seed_entries.json`** — Synthetic clinical records for pipeline testing (zero real patient PII).
 
 | Concept Type | Count | Description |
-| --- | --- | --- |
-| `drug_brand` | 65 | Commercial pharmaceutical brand names prescribed in Nepal mapped to generic compounds |
-| `symptom` | 63 | Colloquial, formal, and Romanized patient symptom descriptions |
-| `condition` | 37 | Clinical diagnoses mapped to WHO ICD-11 and ICD-10 codes |
-| `investigation` | 37 | Laboratory tests and diagnostic imaging investigations |
+|---|---|---|
+| `drug_brand` | 65 | Commercial pharmaceutical brand names prescribed in Nepal linked to generic compounds via `generic_of` |
+| `symptom` | 63 | Colloquial, formal, and Romanized patient symptom descriptions (`ज्वरो`, `पेट पोल्ने`, `रिंगटा लाग्ने`) |
+| `condition` | 37 | Clinical diagnoses mapped to WHO ICD-11 and ICD-10 codes (`मधुमेह`, `उच्च रक्तचाप`, `टाइफाइड`) |
+| `investigation` | 37 | Laboratory tests and diagnostic imaging investigations (`CBC`, `HbA1c`, `Widal`) |
 | `drug_generic` | 28 | Active pharmaceutical ingredients (NLEM 2021 / WHO Essential Medicines) |
-| `body_site` | 25 | Anatomical locations and qualifiers |
-| `duration` | 20 | Temporal duration expressions (`duration_days`, `frequency_per_day`) |
-| `severity` | 15 | Clinical severity and progression modifiers |
-| `negation` | 10 | Directional clinical negation markers (`pre` and `post` scope) |
-| **Total** | **300** | **Controlled clinical ontology** |
+| `body_site` | 25 | Anatomical locations and qualifiers (`छाती`, `पेट`, `टाउको`) |
+| `duration` | 20 | Temporal duration and dosing frequency expressions (`duration_days`, `frequency_per_day`) |
+| `severity` | 15 | Clinical severity and progression modifiers (`धेरै`, `अलिकति`, `बढ्दै`) |
+| `negation` | 10 | Directional clinical negation markers (`छैन`, `भएन`, `नभएको`, `बिना`) |
+| **Total** | **300** | **Controlled Nepali clinical vocabulary** |
 
-### Synthetic Clinical Records
+---
 
-`seed_patients.json` (3 patient profiles) and `seed_entries.json` (4 multi-modal clinical encounters) are synthetic records designed for pipeline evaluation and demonstration. No real patient identifiable information (PII) is present.
+## 3. Collection Process & Canonicalization Policy
 
-Dates carry two distinct fields to prevent silent calendar conversion errors:
+- **Authorship**: Entries were authored for SwasthyaSanjaal v0.1 by cross-referencing standard Nepali OPD/FCHV expressions, Nepal's National List of Essential Medicines (NLEM 2021), Department of Drug Administration (DDA) registered brands, and WHO ICD-11 MMS concepts.
+- **Canonicalization Policy**: Nepali has no single standardized medical register. SwasthyaSanjaal canonicalizes to the register a patient or frontline health worker actually uses (e.g., `दम` and `उच्च रक्तचाप`) rather than artificial Sanskritized neologisms, recording the register in `preferred_register` (`colloquial` vs. `literary`).
+- **Provenance & Verification Fields**:
+  - `source`: States how the row was created (`"authored for ArogyaKhata/SwasthyaSanjaal v0.1; not extracted from a published register"`).
+  - `verify_against`: Names the external authority that settles the row (`WHO ICD-11 MMS`, `NLEM 2021`, `Nepal DDA`, or `clinician review — Nepali clinical usage`).
+  - `review_status`: Explicitly tracks clinician sign-off (`"unreviewed"` on all 300 rows in v0.1).
 
-| Field | Calendar | Purpose |
-| --- | --- | --- |
-| `record_date` | Gregorian ISO-8601 (`YYYY-MM-DD`) | Canonical sorting, longitudinal comparison, and HL7 FHIR R4 resource compliance |
-| `record_date_bs` | Bikram Sambat (BS) | Authored display string for local clinical context; never programmatically converted |
+---
 
-### Per-Concept Schema & Linguistic Fields
+## 4. Preprocessing & Indexing
 
-- **`devanagari_aliases`**: Strictly Devanagari script surface forms (`ज्वरो`, `मियादी जोरो`), preventing Latin script contamination in Devanagari-specific matchers.
-- **`romanized_aliases`**: Phonetic Latin transcriptions as typed by patients and health workers on mobile keyboards (`jworo`, `tauko dukhne`).
-- **`latin_aliases`**: Standard international clinical abbreviations and terminology appearing on laboratory slips (`CBC`, `HbA1c`, `SpO2`, `Widal`).
-- **`code_mixed_patterns`**: Multi-token bilingual Nepali-English phrases common in clinical notes (`fever cha`, `tab cetamol`).
-- **`generic_of`**: Explicit pointer from a `drug_brand` concept to its underlying `drug_generic` concept ID, enabling deterministic brand-to-generic resolution and duplicate-therapy detection.
-- **`negation_scope`**: Specifies whether a negation marker operates post-positionally (`छैन` $\rightarrow$ `post`) or pre-positionally (`बिना` $\rightarrow$ `pre`).
-- **`duration_days` & `frequency_per_day`**: Structured numeric representations for temporal duration and dosing frequency.
-- **`verify_against`, `review_status`, & `sources`**: Explicit provenance tracking naming the clinical authority (`Nepal DDA`, `NLEM 2021`, `WHO ICD-11 MMS`, `EDCD Nepal`) and verification state for each concept.
+- **Script Separation**: `devanagari_aliases` contains strictly Devanagari surface forms; `romanized_aliases` contains phonetic Latin transliterations (`jworo`, `khoki`); `latin_aliases` contains clinical abbreviations (`CBC`, `SpO2`); `code_mixed_patterns` contains multi-token bilingual phrases (`fever cha`).
+- **Alias Uniqueness**: Every surface form maps deterministically to a single concept ID so Tier 1 lookup is $O(1)$ and ambiguity-free.
+- **No Calendar Fabrication**: Internal encounter dates (`record_date`) use ISO-8601 Gregorian (`YYYY-MM-DD`). Bikram Sambat (`record_date_bs`) is stored as an authored display string and is never programmatically converted.
 
-### Alias Uniqueness & Disambiguation Discipline
+---
 
-Every surface string maps deterministically to a single concept across `devanagari_aliases`, `romanized_aliases`, `latin_aliases`, and `code_mixed_patterns`:
+## 5. Intended Uses
 
-1. **Brand Ownership**: A commercial brand name (`सिटामोल`, `Taxim-O`) resolves to its `drug_brand` concept, which links to its generic compound via `generic_of`.
-2. **Symptom vs. Anatomy Separation**: Complaint phrases (`chest pain`, ` छाती दुख्ने`) belong to `symptom` concepts rather than `body_site` concepts.
-3. **No Silent Diagnostic Inference**: Laboratory findings (`Hb low`) map to the laboratory observation concept (`Hemoglobin`) rather than inferring a clinical diagnosis (`Anemia`).
+- Grounding 3-tier Nepali clinical concept normalization (`LEXICON` $\rightarrow$ `FUZZY_MATCH` $\rightarrow$ constrained `LLM`)
+- Lexicon-constrained post-OCR spell correction
+- Preserving directional clinical negation (`negation_scope`) and brand-to-generic medication linking (`generic_of`)
+- Evaluating extraction and uncertainty calibration on `NepClinBench`
 
-## Intended Uses
+### Out-of-Scope Uses
 
-- Deterministic and constrained-AI normalization of messy Nepali clinical inputs
-- Evaluating exact matching, orthography-folded fuzzy matching, and constrained LLM candidate selection
-- Preserving directional clinical negation and brand-to-generic medication mappings
-- Benchmarking OCR post-correction and clinical speech normalization pipelines
+This dataset must **not** be used for autonomous clinical diagnosis, unverified drug-interaction checking, or automated medical advice generation without human clinician oversight.
 
-## Out-of-Scope Uses
+---
 
-This dataset is an open-source research artifact and must **not** be used as an autonomous clinical decision-making system, unverified medication safety database, or automated insurance claims adjudication engine without human clinician review.
+## 6. Distribution
 
-## License
+Released openly under the **Creative Commons Attribution 4.0 International License (CC-BY-4.0)** in both JSON (`data/nepali_clinical_lexicon.json`) and CSV (`data/nepali_clinical_lexicon.csv`) formats.
 
-Released under the **Creative Commons Attribution 4.0 International License (CC-BY-4.0)**.
+---
+
+## 7. Maintenance & Contribution
+
+Maintained in the `SwasthyaSanjaal` repository. Contributors can add aliases, Romanized variants, and new concepts via pull requests following [`CONTRIBUTING.md`](../CONTRIBUTING.md) and running `pytest` + `python -m backend.eval` to verify zero alias collisions and zero precision regressions.
+
+---
+
+## 8. Known Gaps & Honesty Statement
+
+1. **Clinician Review Status (`review_status: "unreviewed"`)**: Every row in `nepali_clinical_lexicon.json` currently carries `"review_status": "unreviewed"`. We do **not** claim clinician sign-off that has not yet occurred; rows transition to `"clinician-reviewed"` only when verified by a named clinician.
+2. **Regional Dialect Variation**: Current aliases focus on standard and central hill/valley colloquial Nepali; far-western (*Doteli/Khas*) and Terai code-mixed clinical expressions are underrepresented and targeted for community contribution.
+3. **Contested Code-Mixed Benchmark Items**: Items `#39` and `#40` in `nepclinbench.json` represent contested code-mixed shorthand where the deterministic normalizer abstains (`precision = 1.000`, `58/60` exact match) rather than guessing.
