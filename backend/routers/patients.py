@@ -275,6 +275,19 @@ def get_patient(
         p = record.get_patient(con, patient_id)
         if not p:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        audit(
+            con,
+            action="patient_read",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="patient",
+            resource_id=patient_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Patient record read: {patient_id}",
+            ip_address=None,
+            user_agent=None,
+        )
         return _build_patient_detail(p, con, lexicon)
 
 
@@ -296,6 +309,19 @@ def get_patient_record(
             con, patient_id, document_class=document_class, query=query
         )
         entries = [_to_summary(row, lexicon) for row in entry_rows]
+        audit(
+            con,
+            action="patient_record_read",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="patient_record",
+            resource_id=patient_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Patient timeline read: {patient_id} ({len(entries)} entries)",
+            ip_address=None,
+            user_agent=None,
+        )
         return RecordResponse(patient=patient_detail, entries=entries)
 
 
@@ -311,6 +337,19 @@ def get_entry(
         entry = record.get_entry(con, entry_id)
         if not entry or entry["patient_id"] != patient_id:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found for patient")
+        audit(
+            con,
+            action="entry_read",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="record_entry",
+            resource_id=entry_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Entry detail read: {entry_id}",
+            ip_address=None,
+            user_agent=None,
+        )
         return _to_detail(entry, lexicon)
 
 
@@ -575,6 +614,19 @@ def get_patient_entries(
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
         rows = record.list_entries(con, patient_id)
+        audit(
+            con,
+            action="patient_entries_read",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="patient_entries",
+            resource_id=patient_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Patient entries read: {patient_id} ({len(rows)} entries)",
+            ip_address=None,
+            user_agent=None,
+        )
         return [_to_summary(row, lexicon) for row in rows]
 
 
@@ -590,6 +642,19 @@ def get_entry_by_id(
         if not entry:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
         check_patient_access(con, current_user, entry["patient_id"])
+        audit(
+            con,
+            action="entry_read",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="record_entry",
+            resource_id=entry_id,
+            patient_id=entry["patient_id"],
+            outcome="success",
+            detail=f"Entry detail read by ID: {entry_id}",
+            ip_address=None,
+            user_agent=None,
+        )
         return _to_detail(entry, lexicon)
 
 
@@ -605,6 +670,19 @@ def commit_entry_by_id(
         if not entry:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
         check_patient_access(con, current_user, entry["patient_id"])
+        audit(
+            con,
+            action="entry_commit_by_id",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="record_entry",
+            resource_id=entry_id,
+            patient_id=entry["patient_id"],
+            outcome="success",
+            detail=f"Entry committed by ID: {entry_id}",
+            ip_address=None,
+            user_agent=None,
+        )
         return {"committed": True, "entry": _to_detail(entry, lexicon).model_dump()}
 
 
