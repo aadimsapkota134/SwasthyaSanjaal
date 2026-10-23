@@ -186,6 +186,18 @@ async def require_auth(
 ) -> dict[str, Any]:
     """Require a valid authenticated session. Raises 401 if not authenticated."""
     if current_user is None:
+        from backend.db import session as db_session
+
+        with db_session() as con:
+            audit(
+                con,
+                action="auth_failure",
+                actor_email=None,
+                outcome="failure",
+                detail="Authentication required",
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
@@ -199,6 +211,20 @@ async def require_admin(
 ) -> dict[str, Any]:
     """Require an administrator role. Raises 403 if not an admin."""
     if current_user.get("role") != "administrator":
+        # We don't have a DB session here; audit via a lightweight call
+        from backend.db import session as db_session
+
+        with db_session() as con:
+            audit(
+                con,
+                action="auth_failure",
+                actor_id=current_user["user_id"],
+                actor_email=current_user["email"],
+                outcome="failure",
+                detail="Administrator privileges required",
+                ip_address=None,
+                user_agent=None,
+            )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrator privileges required",
