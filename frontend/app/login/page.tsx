@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [portal, setPortal] = useState<"individual" | "provider">("individual");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,6 +23,29 @@ export default function LoginPage() {
     try {
       const success = await login(email, password);
       if (success) {
+        // Enforce portal matching
+        const userJson = localStorage.getItem("swasthya_user");
+        if (userJson) {
+          const user = JSON.parse(userJson);
+          if (portal === "individual" && user.role !== "individual") {
+            setError(
+              "This account is registered as a Healthcare Provider. Please select 'Healthcare Provider' above to sign in."
+            );
+            setIsLoading(false);
+            return;
+          }
+          if (
+            portal === "provider" &&
+            user.role !== "clinician" &&
+            user.role !== "administrator"
+          ) {
+            setError(
+              "This account is registered as an Individual. Please select 'Individual' above to sign in."
+            );
+            setIsLoading(false);
+            return;
+          }
+        }
         router.push("/");
       } else {
         setError("Invalid email or password. Please try again.");
@@ -33,6 +57,7 @@ export default function LoginPage() {
     }
   };
 
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center bg-[#f1f5f9] p-4">
       <div className="w-full max-w-md">
@@ -43,8 +68,40 @@ export default function LoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-[#0f172a]">Welcome back</h1>
             <p className="text-[#475569] mt-2">
-              Sign in to Swasthya Sanjaal to access clinical records.
+              Select your portal to continue.
             </p>
+          </div>
+
+          {/* Portal Switcher */}
+          <div className="grid grid-cols-2 gap-2 mb-6 p-1 bg-[#f1f5f9] rounded-xl border border-[#e2e8f0]">
+            <button
+              type="button"
+              onClick={() => {
+                setPortal("individual");
+                setError("");
+              }}
+              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all ${
+                portal === "individual"
+                  ? "bg-white text-[#0f6b54] shadow-sm font-bold"
+                  : "text-[#64748b] hover:text-[#0f172a]"
+              }`}
+            >
+              👤 Individual Portal
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPortal("provider");
+                setError("");
+              }}
+              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all ${
+                portal === "provider"
+                  ? "bg-white text-[#0f6b54] shadow-sm font-bold"
+                  : "text-[#64748b] hover:text-[#0f172a]"
+              }`}
+            >
+              🏥 Healthcare Provider
+            </button>
           </div>
 
           {error && (
