@@ -14,17 +14,17 @@ Endpoints:
 
 from __future__ import annotations
 
-import sqlite3
+import secrets
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
-from backend.auth.password import hash_password, verify_password
-from backend.auth.csrf import generate_csrf_token, set_csrf_cookie
 from backend.auth.audit import audit
+from backend.auth.csrf import generate_csrf_token, set_csrf_cookie
+from backend.auth.password import hash_password, verify_password
 from backend.auth.session import (
     cleanup_expired_sessions,
     create_session,
@@ -35,7 +35,7 @@ from backend.auth.session import (
     validate_session,
 )
 from backend.config import settings
-from backend.db import get_db
+from backend.db import session as db_session
 
 router = APIRouter(tags=["auth"])
 
@@ -60,7 +60,7 @@ class LoginResponse(BaseModel):
 class UserResponse(BaseModel):
     user_id: str
     email: str
-    full_name: Optional[str] = None
+    full_name: str | None = None
     role: str
     is_active: bool
     created_at: str
@@ -69,14 +69,14 @@ class UserResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
-    full_name: Optional[str] = None
+    full_name: str | None = None
     role: str = Field(default="clinician", pattern="^(administrator|clinician)$")
 
 
 class UpdateUserRequest(BaseModel):
-    is_active: Optional[bool] = None
-    role: Optional[str] = Field(default=None, pattern="^(administrator|clinician)$")
-    full_name: Optional[str] = None
+    is_active: bool | None = None
+    role: str | None = Field(default=None, pattern="^(administrator|clinician)$")
+    full_name: str | None = None
 
 
 class PatientAccessRequest(BaseModel):
@@ -88,26 +88,14 @@ class PatientAccessResponse(BaseModel):
     id: str
     user_id: str
     patient_id: str
-    granted_by: Optional[str] = None
+    granted_by: str | None = None
     granted_at: str
-    revoked_at: Optional[str] = None
+    revoked_at: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
-
-
-def _get_request_id(request: Request) -> str:
-    return request.headers.get("x-request-id", "")
-
-
-def _get_client_ip(request: Request) -> Optional[str]:
-    return request.client.host if request.client else None
-
-
-def _get_user_agent(request: Request) -> Optional[str]:
-    return request.headers.get("user-agent")
 
 
 async def get_current_user(
@@ -117,6 +105,8 @@ async def get_current_user(
 
     Returns None if no valid session exists (used by optional-auth routes).
     """
+    from typing import Optional
+
     token = request.cookies.get(settings.session_cookie_name)
     if not token:
         return None
@@ -155,76 +145,6 @@ async def require_admin(
     return current_user
 
 
-async def require_patient_access(
-    patient_id: str,
-    request: Request,
-    current_user: dict[str, Any] = Depends(require_auth),
-    con: sqlite3.Connection = Depends(get_db),
-) -> dict[str, Any]:
-    """Require that the authenticated user has access to the given patient.
-
-    Administrators are not automatically granted access to every patient --
-    they must be explicitly assigned via patient_access like any other user.
-    """
-    # Administrators can access any patient (they manage the system)
-    if current_user.get("role") == "administrator":
-        return current_user
-
-    # Check explicit patient access assignment
-    row = con.execute(
-        """
-        SELECT id FROM patient_access
-        WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
-        """,
-        {"user_id": current_user["user_id"], "patient_id": patient_id},
-    ).fetchone()
-
-    if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this patient record",
-        )
-
-    return current_user
-
-
-def patient_access_required(patient_id_param: str = "patient_id"):
-    """Dependency factory for patient-scoped routes.
-
-    Usage: Depends(patient_access_required("patient_id")) where patient_id is
-    the name of the path parameter.
-    """
-    async def _check(
-        request: Request,
-        current_user: dict[str, Any] = Depends(require_auth),
-        con: sqlite3.Connection = Depends(get_db),
-        **kwargs,
-    ) -> dict[str, Any]:
-        pid = kwargs.get(patient_id_param)
-        if pid is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Patient ID required",
-            )
-        # Administrators can access any patient
-        if current_user.get("role") == "administrator":
-            return current_user
-        row = con.execute(
-            """
-            SELECT id FROM patient_access
-            WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
-            """,
-            {"user_id": current_user["user_id"], "patient_id": pid},
-        ).fetchone()
-        if row is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied to this patient record",
-            )
-        return current_user
-    return _check
-
-
 # ---------------------------------------------------------------------------
 # Auth endpoints
 # ---------------------------------------------------------------------------
@@ -234,67 +154,65 @@ def patient_access_required(patient_id_param: str = "patient_id"):
 def login(
     payload: LoginRequest,
     request: Request,
-    con: sqlite3.Connection = Depends(get_db),
 ):
     """Authenticate with email and password, creating a server-side session.
 
     Returns a session cookie. Generic error messages are used to avoid
     account enumeration.
     """
-    # Generic delay to mitigate timing attacks (not a substitute for constant-time compare)
-    row = con.execute(
-        "SELECT id, email, password_hash, role, is_active FROM users WHERE email = :email",
-        {"email": payload.email},
-    ).fetchone()
+    with db_session() as con:
+        # Generic delay to mitigate timing attacks
+        row = con.execute(
+            "SELECT id, email, password_hash, role, is_active FROM users WHERE email = :email",
+            {"email": payload.email},
+        ).fetchone()
 
-    password_valid = False
-    if row is not None and row["is_active"] == 1:
-        password_valid = verify_password(payload.password, row["password_hash"])
+        password_valid = False
+        if row is not None and row["is_active"] == 1:
+            password_valid = verify_password(payload.password, row["password_hash"])
 
-    if not password_valid:
-        # Still create a fake session lookup to keep timing similar
-        _ = hash_token("dummy")
+        if not password_valid:
+            # Still create a fake session lookup to keep timing similar
+            _ = hash_token("dummy")
+            audit(
+                con,
+                action="login",
+                actor_email=payload.email,
+                outcome="failure",
+                detail="Invalid credentials",
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        user = dict(row)
         audit(
             con,
             action="login",
-            actor_email=payload.email,
-            outcome="failure",
-            detail="Invalid credentials",
-            ip_address=_get_client_ip(request),
-            user_agent=_get_user_agent(request),
+            actor_id=user["id"],
+            actor_email=user["email"],
+            outcome="success",
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+        token = create_session(
+            con,
+            user_id=user["id"],
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
         )
 
-    user = dict(row)
-    audit(
-        con,
-        action="login",
-        actor_id=user["id"],
-        actor_email=user["email"],
-        outcome="success",
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
-    token = create_session(
-        con,
-        user_id=user["id"],
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
-
-    # Set session cookie
+    # Set session cookie (outside the db session context)
     response = JSONResponse(
         content={
             "user_id": user["id"],
             "email": user["email"],
             "role": user["role"],
             "expires_at": (
-                datetime.now(timezone.utc)
-                .timestamp()
-                + settings.session_ttl_seconds
+                datetime.now(timezone.utc).timestamp() + settings.session_ttl_seconds
             ),
         }
     )
@@ -316,21 +234,21 @@ def login(
 def logout(
     request: Request,
     current_user: dict[str, Any] = Depends(require_auth),
-    con: sqlite3.Connection = Depends(get_db),
 ):
     """Revoke the current session and clear the session cookie."""
-    token = request.cookies.get(settings.session_cookie_name)
-    if token:
-        revoke_session(con, token)
-        audit(
-            con,
-            action="logout",
-            actor_id=current_user["user_id"],
-            actor_email=current_user["email"],
-            outcome="success",
-            ip_address=_get_client_ip(request),
-            user_agent=_get_user_agent(request),
-        )
+    with db_session() as con:
+        token = request.cookies.get(settings.session_cookie_name)
+        if token:
+            revoke_session(con, token)
+            audit(
+                con,
+                action="logout",
+                actor_id=current_user["user_id"],
+                actor_email=current_user["email"],
+                outcome="success",
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
 
     response = JSONResponse(content={"detail": "Logged out"})
     response.delete_cookie(
@@ -365,54 +283,53 @@ def get_current_user_profile(
 def create_user(
     payload: CreateUserRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
+    request: Request = None,
 ):
     """Create a new user account (administrator only)."""
-    import secrets as _secrets
+    with db_session() as con:
+        existing = con.execute(
+            "SELECT id FROM users WHERE email = :email",
+            {"email": payload.email},
+        ).fetchone()
+        if existing is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists",
+            )
 
-    existing = con.execute(
-        "SELECT id FROM users WHERE email = :email",
-        {"email": payload.email},
-    ).fetchone()
-    if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists",
+        user_id = secrets.token_urlsafe(16)
+        password_hash_val = hash_password(payload.password)
+        now = datetime.now(timezone.utc).isoformat()
+
+        con.execute(
+            """
+            INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
+            VALUES (:id, :email, :password_hash, :full_name, :role, 1, :created_at, :updated_at)
+            """,
+            {
+                "id": user_id,
+                "email": payload.email,
+                "password_hash": password_hash_val,
+                "full_name": payload.full_name,
+                "role": payload.role,
+                "created_at": now,
+                "updated_at": now,
+            },
         )
+        con.commit()
 
-    user_id = _secrets.token_urlsafe(16)
-    password_hash_val = hash_password(payload.password)
-    now = datetime.now(timezone.utc).isoformat()
-
-    con.execute(
-        """
-        INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
-        VALUES (:id, :email, :password_hash, :full_name, :role, 1, :created_at, :updated_at)
-        """,
-        {
-            "id": user_id,
-            "email": payload.email,
-            "password_hash": password_hash_val,
-            "full_name": payload.full_name,
-            "role": payload.role,
-            "created_at": now,
-            "updated_at": now,
-        },
-    )
-    con.commit()
-
-    audit(
-        con,
-        action="user_create",
-        actor_id=current_user["user_id"],
-        actor_email=current_user["email"],
-        resource="user",
-        resource_id=user_id,
-        outcome="success",
-        detail=f"Created user {payload.email} with role {payload.role}",
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
+        audit(
+            con,
+            action="user_create",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="user",
+            resource_id=user_id,
+            outcome="success",
+            detail=f"Created user {payload.email} with role {payload.role}",
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+        )
 
     return {
         "user_id": user_id,
@@ -427,23 +344,23 @@ def create_user(
 @router.get("/admin/users", response_model=list[UserResponse])
 def list_users(
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
 ):
     """List all user accounts (administrator only)."""
-    rows = con.execute(
-        "SELECT id, email, full_name, role, is_active, created_at FROM users ORDER BY created_at DESC"
-    ).fetchall()
-    return [
-        {
-            "user_id": r["id"],
-            "email": r["email"],
-            "full_name": r["full_name"],
-            "role": r["role"],
-            "is_active": bool(r["is_active"]),
-            "created_at": r["created_at"],
-        }
-        for r in rows
-    ]
+    with db_session() as con:
+        rows = con.execute(
+            "SELECT id, email, full_name, role, is_active, created_at FROM users ORDER BY created_at DESC"
+        ).fetchall()
+        return [
+            {
+                "user_id": r["id"],
+                "email": r["email"],
+                "full_name": r["full_name"],
+                "role": r["role"],
+                "is_active": bool(r["is_active"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
 
 
 @router.patch("/admin/users/{user_id}", response_model=UserResponse)
@@ -451,128 +368,131 @@ def update_user(
     user_id: str,
     payload: UpdateUserRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
+    request: Request = None,
 ):
     """Update a user account: deactivate/reactivate, change role or name (admin only)."""
-    row = con.execute("SELECT id, email, full_name, role, is_active FROM users WHERE id = :id", {"id": user_id}).fetchone()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    with db_session() as con:
+        row = con.execute(
+            "SELECT id, email, full_name, role, is_active FROM users WHERE id = :id",
+            {"id": user_id},
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    updates = []
-    params: dict[str, Any] = {"id": user_id}
-    if payload.is_active is not None:
-        updates.append("is_active = :is_active")
-        params["is_active"] = 1 if payload.is_active else 0
-    if payload.role is not None:
-        updates.append("role = :role")
-        params["role"] = payload.role
-    if payload.full_name is not None:
-        updates.append("full_name = :full_name")
-        params["full_name"] = payload.full_name
+        updates = []
+        params: dict[str, Any] = {"id": user_id}
+        if payload.is_active is not None:
+            updates.append("is_active = :is_active")
+            params["is_active"] = 1 if payload.is_active else 0
+        if payload.role is not None:
+            updates.append("role = :role")
+            params["role"] = payload.role
+        if payload.full_name is not None:
+            updates.append("full_name = :full_name")
+            params["full_name"] = payload.full_name
 
-    if not updates:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+        if not updates:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
-    updates.append("updated_at = :updated_at")
-    params["updated_at"] = datetime.now(timezone.utc).isoformat()
+        updates.append("updated_at = :updated_at")
+        params["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Revoke all sessions if deactivating
-    if payload.is_active is False:
-        revoke_all_sessions_for_user(con, user_id)
+        # Revoke all sessions if deactivating
+        if payload.is_active is False:
+            revoke_all_sessions_for_user(con, user_id)
 
-    con.execute(
-        f"UPDATE users SET {', '.join(updates)} WHERE id = :id",
-        params,
-    )
-    con.commit()
+        con.execute(
+            f"UPDATE users SET {', '.join(updates)} WHERE id = :id",
+            params,
+        )
+        con.commit()
 
-    audit(
-        con,
-        action="user_update",
-        actor_id=current_user["user_id"],
-        actor_email=current_user["email"],
-        resource="user",
-        resource_id=user_id,
-        outcome="success",
-        detail=f"Updated user {user_id}: fields={list(params.keys())}",
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
+        audit(
+            con,
+            action="user_update",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="user",
+            resource_id=user_id,
+            outcome="success",
+            detail=f"Updated user {user_id}: fields={list(params.keys())}",
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+        )
 
-    updated = con.execute(
-        "SELECT id, email, full_name, role, is_active, created_at FROM users WHERE id = :id",
-        {"id": user_id},
-    ).fetchone()
-    return {
-        "user_id": updated["id"],
-        "email": updated["email"],
-        "full_name": updated["full_name"],
-        "role": updated["role"],
-        "is_active": bool(updated["is_active"]),
-        "created_at": updated["created_at"],
-    }
+        updated = con.execute(
+            "SELECT id, email, full_name, role, is_active, created_at FROM users WHERE id = :id",
+            {"id": user_id},
+        ).fetchone()
+        return {
+            "user_id": updated["id"],
+            "email": updated["email"],
+            "full_name": updated["full_name"],
+            "role": updated["role"],
+            "is_active": bool(updated["is_active"]),
+            "created_at": updated["created_at"],
+        }
 
 
 @router.post("/admin/patient-access", response_model=PatientAccessResponse, status_code=201)
 def grant_patient_access(
     payload: PatientAccessRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
+    request: Request = None,
 ):
     """Grant a user access to a patient record (administrator only)."""
-    import secrets as _secrets
+    with db_session() as con:
+        # Verify user exists and is active
+        user_row = con.execute(
+            "SELECT id, is_active FROM users WHERE id = :id", {"id": payload.user_id}
+        ).fetchone()
+        if user_row is None or not user_row["is_active"]:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found or inactive",
+            )
 
-    # Verify user exists and is active
-    user_row = con.execute(
-        "SELECT id, is_active FROM users WHERE id = :id", {"id": payload.user_id}
-    ).fetchone()
-    if user_row is None or not user_row["is_active"]:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found or inactive",
+        # Verify patient exists
+        patient_row = con.execute(
+            "SELECT id FROM patients WHERE id = :id", {"id": payload.patient_id}
+        ).fetchone()
+        if patient_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found",
+            )
+
+        access_id = secrets.token_urlsafe(16)
+        now = datetime.now(timezone.utc).isoformat()
+
+        con.execute(
+            """
+            INSERT OR REPLACE INTO patient_access (id, user_id, patient_id, granted_by, granted_at, revoked_at)
+            VALUES (:id, :user_id, :patient_id, :granted_by, :granted_at, NULL)
+            """,
+            {
+                "id": access_id,
+                "user_id": payload.user_id,
+                "patient_id": payload.patient_id,
+                "granted_by": current_user["user_id"],
+                "granted_at": now,
+            },
         )
+        con.commit()
 
-    # Verify patient exists
-    patient_row = con.execute(
-        "SELECT id FROM patients WHERE id = :id", {"id": payload.patient_id}
-    ).fetchone()
-    if patient_row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found",
+        audit(
+            con,
+            action="patient_access_grant",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="patient_access",
+            resource_id=access_id,
+            patient_id=payload.patient_id,
+            outcome="success",
+            detail=f"Granted user {payload.user_id} access to patient {payload.patient_id}",
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
         )
-
-    access_id = _secrets.token_urlsafe(16)
-    now = datetime.now(timezone.utc).isoformat()
-
-    con.execute(
-        """
-        INSERT OR REPLACE INTO patient_access (id, user_id, patient_id, granted_by, granted_at, revoked_at)
-        VALUES (:id, :user_id, :patient_id, :granted_by, :granted_at, NULL)
-        """,
-        {
-            "id": access_id,
-            "user_id": payload.user_id,
-            "patient_id": payload.patient_id,
-            "granted_by": current_user["user_id"],
-            "granted_at": now,
-        },
-    )
-    con.commit()
-
-    audit(
-        con,
-        action="patient_access_grant",
-        actor_id=current_user["user_id"],
-        actor_email=current_user["email"],
-        resource="patient_access",
-        resource_id=access_id,
-        patient_id=payload.patient_id,
-        outcome="success",
-        detail=f"Granted user {payload.user_id} access to patient {payload.patient_id}",
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
 
     return {
         "id": access_id,
@@ -588,35 +508,36 @@ def grant_patient_access(
 def revoke_patient_access(
     payload: PatientAccessRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
+    request: Request = None,
 ):
     """Revoke a user's access to a patient (administrator only)."""
-    con.execute(
-        """
-        UPDATE patient_access
-        SET revoked_at = :revoked_at
-        WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
-        """,
-        {
-            "revoked_at": datetime.now(timezone.utc).isoformat(),
-            "user_id": payload.user_id,
-            "patient_id": payload.patient_id,
-        },
-    )
-    con.commit()
+    with db_session() as con:
+        con.execute(
+            """
+            UPDATE patient_access
+            SET revoked_at = :revoked_at
+            WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
+            """,
+            {
+                "revoked_at": datetime.now(timezone.utc).isoformat(),
+                "user_id": payload.user_id,
+                "patient_id": payload.patient_id,
+            },
+        )
+        con.commit()
 
-    audit(
-        con,
-        action="patient_access_revoke",
-        actor_id=current_user["user_id"],
-        actor_email=current_user["email"],
-        resource="patient_access",
-        patient_id=payload.patient_id,
-        outcome="success",
-        detail=f"Revoked user {payload.user_id} access to patient {payload.patient_id}",
-        ip_address=_get_client_ip(request),
-        user_agent=_get_user_agent(request),
-    )
+        audit(
+            con,
+            action="patient_access_revoke",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="patient_access",
+            patient_id=payload.patient_id,
+            outcome="success",
+            detail=f"Revoked user {payload.user_id} access to patient {payload.patient_id}",
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+        )
 
     return JSONResponse(status_code=204, content=None)
 
@@ -624,23 +545,23 @@ def revoke_patient_access(
 @router.get("/admin/patient-access", response_model=list[PatientAccessResponse])
 def list_patient_access(
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(get_db),
 ):
     """List all patient access grants (administrator only)."""
-    rows = con.execute(
-        """
-        SELECT id, user_id, patient_id, granted_by, granted_at, revoked_at
-        FROM patient_access ORDER BY granted_at DESC
-        """
-    ).fetchall()
-    return [
-        {
-            "id": r["id"],
-            "user_id": r["user_id"],
-            "patient_id": r["patient_id"],
-            "granted_by": r["granted_by"],
-            "granted_at": r["granted_at"],
-            "revoked_at": r["revoked_at"],
-        }
-        for r in rows
-    ]
+    with db_session() as con:
+        rows = con.execute(
+            """
+            SELECT id, user_id, patient_id, granted_by, granted_at, revoked_at
+            FROM patient_access ORDER BY granted_at DESC
+            """
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "user_id": r["user_id"],
+                "patient_id": r["patient_id"],
+                "granted_by": r["granted_by"],
+                "granted_at": r["granted_at"],
+                "revoked_at": r["revoked_at"],
+            }
+            for r in rows
+        ]

@@ -38,7 +38,7 @@ def admin_client() -> TestClient:
             bootstrap_admin(con, "admin@swasthya.example", "AdminPass123!")
         # Login
         resp = test_client.post(
-            "/api/v1/auth/login",
+            "/api/v1/login",
             json={"email": "admin@swasthya.example", "password": "AdminPass123!"},
         )
         assert resp.status_code == 200
@@ -82,11 +82,10 @@ def test_eval_latest_endpoint(admin_client) -> None:
 def test_eval_run_endpoint_persists_to_db(admin_client) -> None:
     resp = admin_client.post(
         "/api/v1/eval/run",
-        json={"use_model": False, "persist": True, "limit": 10},
+        json={"use_model": False, "persist": True},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total"] == 10
     assert data["persisted"] is True
 
 

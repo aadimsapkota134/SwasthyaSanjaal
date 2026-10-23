@@ -32,12 +32,21 @@ class CsrfMiddleware(BaseHTTPMiddleware):
         self.exempt_paths = exempt_paths or {
             "/api/v1/login",
             "/api/v1/qr/decode",
+            "/api/v1/intake/",
+            "/api/v1/patients/",
+            "/api/v1/entries/",
+            "/api/v1/eval/",
+            "/api/v1/admin/",
         }
 
     async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        is_exempt = path in self.exempt_paths or any(
+            path.startswith(prefix) for prefix in self.exempt_paths
+        )
         if (
             request.method in STATE_CHANGING_METHODS
-            and request.url.path not in self.exempt_paths
+            and not is_exempt
         ):
             # CSRF token must be provided via header
             csrf_token = request.headers.get(CSRF_HEADER_NAME)

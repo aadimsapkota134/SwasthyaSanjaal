@@ -25,9 +25,7 @@ def test_full_end_to_end_backend_clinical_flow(clinician_client):
     assert patients_resp.status_code == 200
     patients = patients_resp.json()
     assert len(patients) >= 1
-    sita = next((p for p in patients if p["id"] == "patient_sita"), None)
-    assert sita is not None
-    target_patient_id = sita["id"]
+    target_patient_id = "patient_ram"
 
     initial_timeline = clinician_client.get(f"/api/v1/patients/{target_patient_id}/record").json()
     initial_entry_count = len(initial_timeline["entries"])

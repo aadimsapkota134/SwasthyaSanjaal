@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.auth.router import require_auth
-from backend.db import session
+from backend.db import session as db_session
 from backend.eval.bench import (
     ItemResult,
     RunSummary,
@@ -159,7 +159,7 @@ class RunListRow(BaseModel):
 
 
 @router.post("/run", response_model=EvalRunResponse)
-def execute_exec(
+def execute_eval(
     payload: EvalRunRequest | None = None,
     current_user: dict = Depends(require_auth),
 ) -> EvalRunResponse:
@@ -174,7 +174,7 @@ def execute_exec(
 
     should_persist = request.persist and request.limit is None
     if should_persist:
-        with session() as con:
+        with db_session() as con:
             persist(summary, con)
 
     return EvalRunResponse.from_summary(summary, persisted=should_persist)
@@ -194,7 +194,7 @@ def get_historical_runs(
     current_user: dict = Depends(require_auth),
 ) -> list[RunListRow]:
     """Lists historical benchmark runs stored in database."""
-    with session() as con:
+    with db_session() as con:
         return [RunListRow(**row) for row in list_runs(con)]
 
 
@@ -204,7 +204,7 @@ def get_run_details(
     current_user: dict = Depends(require_auth),
 ) -> dict[str, Any]:
     """Retrieves all stored item predictions for a historical evaluation run."""
-    with session() as con:
+    with db_session() as con:
         rows = read_run(run_id, con)
     if not rows:
         raise HTTPException(status_code=404, detail=f"Eval run '{run_id}' not found")

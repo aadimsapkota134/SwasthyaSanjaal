@@ -57,7 +57,7 @@ def admin_client(client):
     """Authenticated TestClient as administrator."""
     # Log in as admin
     resp = client.post(
-        "/api/v1/auth/login",
+        "/api/v1/login",
         json={"email": "admin@swasthya.example", "password": "AdminPass123!"},
     )
     assert resp.status_code == 200, f"Admin login failed: {resp.text}"
@@ -88,26 +88,27 @@ def clinician_client(client, tmp_path):
                 "updated_at": now,
             },
         )
-        # Grant access to patient_ram
-        access_id = secrets.token_urlsafe(16)
-        con.execute(
-            """
-            INSERT INTO patient_access (id, user_id, patient_id, granted_by, granted_at, revoked_at)
-            VALUES (:id, :user_id, :patient_id, :granted_by, :granted_at, NULL)
-            """,
-            {
-                "id": access_id,
-                "user_id": clinician_id,
-                "patient_id": "patient_ram",
-                "granted_by": clinician_id,
-                "granted_at": now,
-            },
-        )
+        # Grant access to patient_ram and patient_maya
+        for patient_id in ("patient_ram", "patient_maya"):
+            access_id = secrets.token_urlsafe(16)
+            con.execute(
+                """
+                INSERT INTO patient_access (id, user_id, patient_id, granted_by, granted_at, revoked_at)
+                VALUES (:id, :user_id, :patient_id, :granted_by, :granted_at, NULL)
+                """,
+                {
+                    "id": access_id,
+                    "user_id": clinician_id,
+                    "patient_id": patient_id,
+                    "granted_by": clinician_id,
+                    "granted_at": now,
+                },
+            )
         con.commit()
 
     # Log in as clinician
     resp = client.post(
-        "/api/v1/auth/login",
+        "/api/v1/login",
         json={"email": "clinician@swasthya.example", "password": "ClinicianPass123!"},
     )
     assert resp.status_code == 200, f"Clinician login failed: {resp.text}"
@@ -140,7 +141,7 @@ def unassigned_clinician_client(client, tmp_path):
         con.commit()
 
     resp = client.post(
-        "/api/v1/auth/login",
+        "/api/v1/login",
         json={"email": "unassigned@swasthya.example", "password": "UnassignedPass123!"},
     )
     assert resp.status_code == 200, f"Unassigned login failed: {resp.text}"

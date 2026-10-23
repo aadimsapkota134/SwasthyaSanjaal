@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
+from backend.auth.router import require_auth
+from backend.db import session as db_session
 from backend.intake.documents import (
     CLASS_BILL,
     CLASS_FCHV_ASSESSMENT,
@@ -23,8 +25,6 @@ from backend.intake.pipeline import (
     run_intake,
     run_speech_intake,
 )
-from backend.auth.router import require_auth
-from backend.db import get_db, session as db_session
 from backend.nlp.lexicon import get_lexicon
 from backend.nlp.normalize import normalize
 from backend.schemas import (
@@ -164,6 +164,26 @@ async def intake_ocr(
             )
         )
     )
+
+
+def _sse(events: Iterator[IntakeEvent]) -> Iterator[str]:
+    """Serialize intake events as SSE frames."""
+    try:
+        lexicon = get_lexicon()
+        for event in events:
+            if isinstance(event.data, IntakeResult):
+                body = event.data.to_response(lexicon).model_dump()
+            else:
+                body = event.data
+            yield f"event: {event.name}\ndata: {json.dumps({'event': event.name, 'data': body}, ensure_ascii=False)}\n\n"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Intake stream aborted by pipeline error")
+        error_body = {"event": "error", "data": {"error": type(exc).__name__, "detail": str(exc)}}
+        yield f"event: error\ndata: {json.dumps(error_body, ensure_ascii=False)}\n\n"
+    finally:
+        closer = getattr(events, "close", None)
+        if callable(closer):
+            closer()
 
 
 @router.post("/intake/stream")
