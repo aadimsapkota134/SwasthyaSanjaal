@@ -16,7 +16,7 @@ const AuthContext = createContext<{
     password: string,
     fullName?: string,
     role?: "individual" | "clinician"
-  ) => Promise<boolean>;
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 } | null>(null);
@@ -64,13 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fullName?: string,
       role: "individual" | "clinician" = "individual"
     ) => {
+      // signupApi throws on failure with the server's detail message
       const result = await signupApi(email, password, fullName, role);
-      if (result) {
-        setUser(result.user);
-        return true;
-      }
-      setUser(null);
-      return false;
+      setUser(result.user);
     },
     []
   );

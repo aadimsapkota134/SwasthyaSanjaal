@@ -29,16 +29,14 @@ export default function SignupPage() {
 
     setIsLoading(true);
     try {
-      const success = await signup(email, password, fullName, role);
-      if (success) {
-        router.push("/");
-      } else {
-        setError(
-          "Unable to create account. The email may already be in use or the password is too common."
-        );
-      }
-    } catch {
-      setError("An unexpected error occurred during signup. Please try again.");
+      await signup(email, password, fullName, role);
+      router.push("/");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred during signup. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }

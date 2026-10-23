@@ -104,44 +104,47 @@ export async function signup(
   password: string,
   fullName?: string,
   role: "individual" | "clinician" = "individual"
-): Promise<{ user: UserResponse; csrfToken: string | null } | null> {
-  try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        email,
-        password,
-        full_name: fullName?.trim() || null,
-        role,
-      }),
-    });
-    if (!response.ok) {
-      return null;
+): Promise<{ user: UserResponse; csrfToken: string | null }> {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      email,
+      password,
+      full_name: fullName?.trim() || null,
+      role,
+    }),
+  });
+  if (!response.ok) {
+    let detail = "Unable to create account. Please try again.";
+    try {
+      const errBody = (await response.json()) as { detail?: string };
+      if (errBody.detail) detail = errBody.detail;
+    } catch {
+      // ignore parse error
     }
-    const body = (await response.json()) as {
-      user_id: string;
-      email: string;
-      role: string;
-      expires_at: number;
-    };
-    const csrfToken =
-      response.headers?.get?.("set-cookie")?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
-    return {
-      user: {
-        user_id: body.user_id,
-        email: body.email,
-        full_name: fullName?.trim() || null,
-        role: body.role,
-        is_active: true,
-        created_at: "",
-      },
-      csrfToken,
-    };
-  } catch {
-    return null;
+    throw new Error(detail);
   }
+  const body = (await response.json()) as {
+    user_id: string;
+    email: string;
+    role: string;
+    expires_at: number;
+  };
+  const csrfToken =
+    response.headers?.get?.("set-cookie")?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
+  return {
+    user: {
+      user_id: body.user_id,
+      email: body.email,
+      full_name: fullName?.trim() || null,
+      role: body.role,
+      is_active: true,
+      created_at: "",
+    },
+    csrfToken,
+  };
 }
 
 export async function logout(): Promise<void> {
