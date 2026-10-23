@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from backend.auth.password import hash_password, verify_password
+from backend.auth.audit import audit
 from backend.auth.session import (
     cleanup_expired_sessions,
     create_session,
@@ -252,12 +253,30 @@ def login(
     if not password_valid:
         # Still create a fake session lookup to keep timing similar
         _ = hash_token("dummy")
+        audit(
+            con,
+            action="login",
+            actor_email=payload.email,
+            outcome="failure",
+            detail="Invalid credentials",
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
     user = dict(row)
+    audit(
+        con,
+        action="login",
+        actor_id=user["id"],
+        actor_email=user["email"],
+        outcome="success",
+        ip_address=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+    )
     token = create_session(
         con,
         user_id=user["id"],
@@ -300,6 +319,15 @@ def logout(
     token = request.cookies.get(settings.session_cookie_name)
     if token:
         revoke_session(con, token)
+        audit(
+            con,
+            action="logout",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            outcome="success",
+            ip_address=_get_client_ip(request),
+            user_agent=_get_user_agent(request),
+        )
 
     response = JSONResponse(content={"detail": "Logged out"})
     response.delete_cookie(
@@ -369,6 +397,19 @@ def create_user(
         },
     )
     con.commit()
+
+    audit(
+        con,
+        action="user_create",
+        actor_id=current_user["user_id"],
+        actor_email=current_user["email"],
+        resource="user",
+        resource_id=user_id,
+        outcome="success",
+        detail=f"Created user {payload.email} with role {payload.role}",
+        ip_address=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+    )
 
     return {
         "user_id": user_id,
@@ -442,6 +483,19 @@ def update_user(
     )
     con.commit()
 
+    audit(
+        con,
+        action="user_update",
+        actor_id=current_user["user_id"],
+        actor_email=current_user["email"],
+        resource="user",
+        resource_id=user_id,
+        outcome="success",
+        detail=f"Updated user {user_id}: fields={list(params.keys())}",
+        ip_address=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+    )
+
     updated = con.execute(
         "SELECT id, email, full_name, role, is_active, created_at FROM users WHERE id = :id",
         {"id": user_id},
@@ -503,6 +557,20 @@ def grant_patient_access(
     )
     con.commit()
 
+    audit(
+        con,
+        action="patient_access_grant",
+        actor_id=current_user["user_id"],
+        actor_email=current_user["email"],
+        resource="patient_access",
+        resource_id=access_id,
+        patient_id=payload.patient_id,
+        outcome="success",
+        detail=f"Granted user {payload.user_id} access to patient {payload.patient_id}",
+        ip_address=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+    )
+
     return {
         "id": access_id,
         "user_id": payload.user_id,
@@ -533,6 +601,20 @@ def revoke_patient_access(
         },
     )
     con.commit()
+
+    audit(
+        con,
+        action="patient_access_revoke",
+        actor_id=current_user["user_id"],
+        actor_email=current_user["email"],
+        resource="patient_access",
+        patient_id=payload.patient_id,
+        outcome="success",
+        detail=f"Revoked user {payload.user_id} access to patient {payload.patient_id}",
+        ip_address=_get_client_ip(request),
+        user_agent=_get_user_agent(request),
+    )
+
     return JSONResponse(status_code=204, content=None)
 
 
