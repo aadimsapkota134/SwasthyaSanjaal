@@ -831,3 +831,44 @@ python -m backend.eval.evaluator
 uvicorn backend.main:app --reload --port 8000
 ```
 
+## Frontend (Next.js App Router)
+
+A client-side Next.js frontend connects to the live FastAPI backend. It implements five workflows: dashboard, patient records, document intake, review & commit, and utility features (FHIR export, doctor-summary PDF, emergency QR, NepClinBench eval).
+
+### Setup
+
+```bash
+# 1. From the frontend directory
+cd frontend
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure the backend URL
+cp .env.example .env
+# Edit .env if your backend runs on a different host/port
+
+# 4. Start the development server
+npm run dev
+
+# 5. Open http://localhost:3000
+```
+
+The frontend calls `http://localhost:8000/api/v1/*` by default. No backend secrets are exposed to the browser.
+
+### Required backend running
+
+The frontend requires the FastAPI backend to be running on `http://localhost:8000` (or the `NEXT_PUBLIC_API_BASE_URL` you set in `.env`). Start the backend first:
+
+```bash
+cd /path/to/SwasthyaSanjaal
+.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+## Limitations
+
+- **No authentication/authorization**: The backend currently accepts requests without identity verification. Do not use with real patient data. Authentication and patient-level access control are required before any production deployment.
+- **No real patient data**: Only synthetic seed data (3 patients, 4 entries, 300-lexicon concepts) is used.
+- **External AI unavailable by default**: Deterministic lexicon matching and PDF text extraction work offline. Tier 3 (Gemma-constrained) and vision OCR require a reachable Ollama/Gemma backend, which is not configured by default.
+- **Original donor project**: The source Sanchai repository at `/Users/shubham/Downloads/Sanchai` remains unchanged.
+

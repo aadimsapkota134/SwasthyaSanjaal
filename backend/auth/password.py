@@ -8,7 +8,7 @@ side-channel attacks.
 from __future__ import annotations
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyError, InvalidHashError
+from argon2.exceptions import VerificationError, InvalidHashError
 
 
 _hasher = PasswordHasher(
@@ -39,7 +39,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         _hasher.verify(hashed_password, plain_password)
         return True
-    except (VerifyError, InvalidHashError):
+    except (VerificationError, InvalidHashError):
         return False
     except Exception:
         return False
