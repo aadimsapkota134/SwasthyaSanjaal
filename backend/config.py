@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     # Confidence threshold below which human confirmation is required
     uncertainty_threshold: float = 0.85
 
+    # Security / session settings
+    session_secret_key: str = ""
+    session_cookie_name: str = "swasthya_session"
+    session_cookie_domain: str | None = None
+    session_cookie_path: str = "/"
+    session_cookie_secure: bool = False
+    session_cookie_samesite: str = "lax"
+    session_ttl_seconds: int = 3600
+    bcrypt_cost: int = 12
+    max_failed_login_attempts: int = 5
+    failed_login_lockout_seconds: int = 900
+
     # Allowed CORS Origins
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
 
