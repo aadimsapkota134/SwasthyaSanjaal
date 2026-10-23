@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchHealth, fetchPatients } from "@/lib/api";
@@ -9,40 +9,55 @@ import type { PatientSummary } from "@/lib/contracts";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [health, setHealth] = useState<{ status: string; model_backend: string; model: string; services?: any[] } | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientSummary[] | null>(null);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setPatientsError(null);
+    setHealthError(null);
 
     let cancelled = false;
 
-    Promise.all([
+    await Promise.all([
       fetchHealth().then((h) => {
         if (!cancelled) setHealth(h);
       }).catch((e) => {
         if (!cancelled) setHealthError(e instanceof Error ? e.message : "Unable to reach backend");
       }),
       fetchPatients().then((p) => {
-        if (!cancelled) setPatients(p);
+        if (!cancelled) {
+          if (p === null) {
+            setPatientsError("Unable to load patients. Please log in again.");
+          } else {
+            setPatients(p);
+          }
+        }
       }).catch((e) => {
         if (!cancelled) setPatientsError(e instanceof Error ? e.message : "Unable to load patients");
       }),
-    ]).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
+    ]);
+
+    if (!cancelled) setLoading(false);
 
     return () => { cancelled = true; };
-  }, [isAuthenticated, router]);
+  }, []);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+      return;
+    }
+    if (!authLoading && isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated, authLoading, loadData, router]);
+
+  if (authLoading || loading) {
     return (
       <div className="page">
         <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
@@ -110,13 +125,17 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            {patients === null && !loading ? (
-              <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>Loading patients…</p>
-            ) : patientsError ? (
+            {patientsError ? (
               <div className="alert alert--error">
                 Unable to load patients: {patientsError}
               </div>
-            ) : patients && patients.length === 0 ? (
+            ) : patients === null ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">👥</div>
+                <div className="empty-state__title">No patients assigned</div>
+                <p className="empty-state__desc">No patient records have been assigned to your account. Contact your administrator.</p>
+              </div>
+            ) : patients.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state__icon">👥</div>
                 <div className="empty-state__title">No patients assigned</div>
@@ -124,7 +143,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="grid-2">
-                {patients!.map((p) => (
+                {patients.map((p) => (
                   <Link
                     key={p.id}
                     href={`/patients/${p.id}`}
