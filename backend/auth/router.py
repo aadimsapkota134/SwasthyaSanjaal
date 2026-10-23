@@ -186,6 +186,43 @@ async def require_patient_access(
     return current_user
 
 
+def patient_access_required(patient_id_param: str = "patient_id"):
+    """Dependency factory for patient-scoped routes.
+
+    Usage: Depends(patient_access_required("patient_id")) where patient_id is
+    the name of the path parameter.
+    """
+    async def _check(
+        request: Request,
+        current_user: dict[str, Any] = Depends(require_auth),
+        con: sqlite3.Connection = Depends(lambda: db_session()),
+        **kwargs,
+    ) -> dict[str, Any]:
+        pid = kwargs.get(patient_id_param)
+        if pid is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Patient ID required",
+            )
+        # Administrators can access any patient
+        if current_user.get("role") == "administrator":
+            return current_user
+        row = con.execute(
+            """
+            SELECT id FROM patient_access
+            WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
+            """,
+            {"user_id": current_user["user_id"], "patient_id": pid},
+        ).fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this patient record",
+            )
+        return current_user
+    return _check
+
+
 # ---------------------------------------------------------------------------
 # Auth endpoints
 # ---------------------------------------------------------------------------

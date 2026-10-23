@@ -7,9 +7,11 @@ from typing import Any
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
-from backend.db import session
+from backend.auth.router import require_admin, require_auth
+from backend.auth.session import validate_session
+from backend.db import session as db_session
 from backend.nlp.lexicon import Lexicon, get_lexicon
 from backend.record import entries as record
 from backend.record import qr
@@ -36,6 +38,33 @@ router = APIRouter(tags=["record"])
 
 # Supported clinical input modalities at the human confirmation write gate.
 ALLOWED_INPUT_TYPES = frozenset({"text", "image", "pdf", "voice", "speech"})
+
+
+def check_patient_access(
+    con: sqlite3.Connection,
+    current_user: dict,
+    patient_id: str,
+) -> None:
+    """Enforce patient-level access control.
+
+    Administrators can access any patient. Clinicians must have an explicit
+    (non-revoked) patient_access grant. Raises 403 if access is denied.
+    Uses a generic "not found" message to avoid leaking patient existence.
+    """
+    if current_user.get("role") == "administrator":
+        return
+    row = con.execute(
+        """
+        SELECT id FROM patient_access
+        WHERE user_id = :user_id AND patient_id = :patient_id AND revoked_at IS NULL
+        """,
+        {"user_id": current_user["user_id"], "patient_id": patient_id},
+    ).fetchone()
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Patient {patient_id} not found",
+        )
 
 
 def _age(dob: str | None, on: dt.date | None = None) -> int | None:
@@ -191,9 +220,24 @@ def _build_patient_detail(patient: sqlite3.Row, con: sqlite3.Connection, lexicon
 
 
 @router.get("/patients", response_model=list[PatientSummary])
-def list_patients() -> list[PatientSummary]:
-    with session() as con:
-        rows = record.list_patients(con)
+def list_patients(
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+):
+    with con:
+        if current_user.get("role") == "administrator":
+            rows = record.list_patients(con)
+        else:
+            # Clinicians only see patients they have access to
+            rows = con.execute(
+                """
+                SELECT p.* FROM patients p
+                JOIN patient_access pa ON pa.patient_id = p.id
+                WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+                ORDER BY p.name
+                """,
+                {"user_id": current_user["user_id"]},
+            ).fetchall()
         result: list[PatientSummary] = []
         for p in rows:
             entry_count = len(record.list_entries(con, p["id"]))
@@ -222,9 +266,14 @@ def list_patients() -> list[PatientSummary]:
 
 
 @router.get("/patients/{patient_id}", response_model=PatientDetail)
-def get_patient(patient_id: str) -> PatientDetail:
+def get_patient(
+    patient_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> PatientDetail:
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         p = record.get_patient(con, patient_id)
         if not p:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -236,9 +285,12 @@ def get_patient_record(
     patient_id: str,
     document_class: str | None = Query(default=None),
     query: str | None = Query(default=None),
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
 ) -> RecordResponse:
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         p = record.get_patient(con, patient_id)
         if not p:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -251,9 +303,15 @@ def get_patient_record(
 
 
 @router.get("/patients/{patient_id}/entries/{entry_id}", response_model=RecordEntryDetail)
-def get_entry(patient_id: str, entry_id: str) -> RecordEntryDetail:
+def get_entry(
+    patient_id: str,
+    entry_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> RecordEntryDetail:
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         entry = record.get_entry(con, entry_id)
         if not entry or entry["patient_id"] != patient_id:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found for patient")
@@ -261,8 +319,14 @@ def get_entry(patient_id: str, entry_id: str) -> RecordEntryDetail:
 
 
 @router.post("/patients/{patient_id}/entries", response_model=RecordEntryDetail, status_code=201)
-def commit_entry(patient_id: str, payload: CommitEntryRequest) -> RecordEntryDetail:
+def commit_entry(
+    patient_id: str,
+    payload: CommitEntryRequest,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> RecordEntryDetail:
     """Human-Confirmation Gate: the only endpoint that mutates patient health records."""
+    check_patient_access(con, current_user, patient_id)
     _require_gregorian(payload.record_date, "record_date")
     if payload.input_type not in ALLOWED_INPUT_TYPES:
         raise HTTPException(
@@ -276,7 +340,7 @@ def commit_entry(patient_id: str, payload: CommitEntryRequest) -> RecordEntryDet
         )
     lexicon = get_lexicon()
 
-    with session() as con:
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -339,10 +403,13 @@ def commit_entry(patient_id: str, payload: CommitEntryRequest) -> RecordEntryDet
 def get_patient_qr(
     patient_id: str,
     format: str | None = Query(default=None),
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
 ) -> Any:
     """Generate high-contrast Segno emergency QR payload and scannable code."""
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -355,9 +422,14 @@ def get_patient_qr(
 
 
 @router.get("/patients/{patient_id}/qr.png")
-def get_patient_qr_image(patient_id: str) -> Response:
+def get_patient_qr_image(
+    patient_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> Response:
     """Return scannable QR code PNG image bytes directly."""
-    with session() as con:
+    check_patient_access(con, current_user, patient_id)
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -416,10 +488,15 @@ async def decode_qr_image(file: UploadFile = File(...)) -> dict[str, Any]:
 
 
 @router.get("/patients/{patient_id}/fhir", response_model=FhirBundle)
-def get_patient_fhir(patient_id: str) -> FhirBundle:
+def get_patient_fhir(
+    patient_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> FhirBundle:
     """Generate HL7 FHIR R4 Collection Bundle strictly excluding negated findings."""
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -430,10 +507,15 @@ def get_patient_fhir(patient_id: str) -> FhirBundle:
 
 
 @router.get("/patients/{patient_id}/summary.pdf")
-def get_patient_summary_pdf(patient_id: str) -> Response:
+def get_patient_summary_pdf(
+    patient_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> Response:
     """Generate high-contrast A4 Doctor Summary PDF using ReportLab."""
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -446,10 +528,15 @@ def get_patient_summary_pdf(patient_id: str) -> Response:
 
 
 @router.get("/patients/{patient_id}/entries", response_model=list[RecordEntrySummary])
-def get_patient_entries(patient_id: str) -> list[RecordEntrySummary]:
+def get_patient_entries(
+    patient_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> list[RecordEntrySummary]:
     """List timeline entries for a specific patient."""
+    check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         patient = record.get_patient(con, patient_id)
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
@@ -458,37 +545,51 @@ def get_patient_entries(patient_id: str) -> list[RecordEntrySummary]:
 
 
 @router.get("/entries/{entry_id}", response_model=RecordEntryDetail)
-def get_entry_by_id(entry_id: str) -> RecordEntryDetail:
+def get_entry_by_id(
+    entry_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> RecordEntryDetail:
     """Retrieve entry detail directly by entry ID."""
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         entry = record.get_entry(con, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
+        check_patient_access(con, current_user, entry["patient_id"])
         return _to_detail(entry, lexicon)
 
 
 @router.post("/entries/{entry_id}/commit")
-def commit_entry_by_id(entry_id: str) -> dict[str, Any]:
+def commit_entry_by_id(
+    entry_id: str,
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> dict[str, Any]:
     """Confirmation Gate: commit an existing draft entry."""
     lexicon = get_lexicon()
-    with session() as con:
+    with con:
         entry = record.get_entry(con, entry_id)
         if not entry:
             raise HTTPException(status_code=404, detail=f"Entry {entry_id} not found")
+        check_patient_access(con, current_user, entry["patient_id"])
         return {"committed": True, "entry": _to_detail(entry, lexicon).model_dump()}
 
 
 @router.get("/emergency/{token}")
 def get_emergency_by_token(token: str) -> dict[str, Any]:
-    """Resolve emergency responder summary by QR token."""
+    """Resolve emergency responder summary by QR token.
+
+    Intentionally public (no authentication required) for first-responder use.
+    Returns only a minimal emergency-data projection: blood group, allergies,
+    active conditions, and district. Does not expose the full clinical timeline
+    or unrestricted record exports.
+    """
     lexicon = get_lexicon()
     with session() as con:
         row = con.execute("SELECT * FROM patients WHERE qr_token = :token", {"token": token}).fetchone()
         if not row:
-            row = con.execute("SELECT * FROM patients LIMIT 1").fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail=f"Emergency token {token} not found")
+            raise HTTPException(status_code=404, detail="Emergency token not found")
 
         detail = _build_patient_detail(row, con, lexicon)
         qr_obj = qr.build_qr_payload(row, con, lexicon)
@@ -499,20 +600,46 @@ def get_emergency_by_token(token: str) -> dict[str, Any]:
             f"Region: {row['district'] or 'Nepal'}",
         ]
         return {
-            "patient": detail.model_dump(),
+            "patient": {
+                "id": detail.id,
+                "name": detail.name,
+                "name_np": detail.name_np,
+                "sanjaal_id": detail.sanjaal_id,
+                "blood_group": detail.blood_group,
+                "district": detail.district,
+                "allergies": detail.allergies,
+                "conditions": detail.conditions,
+                "synthetic": detail.synthetic,
+            },
             "qrPayload": qr_obj.model_dump(),
             "highlights": highlights,
         }
 
 
 @router.get("/dashboard")
-def get_dashboard_summary() -> dict[str, Any]:
-    """Aggregate dashboard summary for quick client inspection."""
+def get_dashboard_summary(
+    current_user: dict = Depends(require_auth),
+    con: sqlite3.Connection = Depends(lambda: db_session()),
+) -> dict[str, Any]:
+    """Aggregate dashboard summary for the authenticated user's assigned patients."""
     lexicon = get_lexicon()
-    with session() as con:
-        patient_row = con.execute("SELECT * FROM patients ORDER BY id ASC LIMIT 1").fetchone()
+    with con:
+        if current_user.get("role") == "administrator":
+            patient_row = con.execute("SELECT * FROM patients ORDER BY id ASC LIMIT 1").fetchone()
+        else:
+            patient_row = con.execute(
+                """
+                SELECT p.* FROM patients p
+                JOIN patient_access pa ON pa.patient_id = p.id
+                WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+                ORDER BY p.name ASC LIMIT 1
+                """,
+                {"user_id": current_user["user_id"]},
+            ).fetchone()
+
         if not patient_row:
-            raise HTTPException(status_code=404, detail="No patients seeded")
+            raise HTTPException(status_code=404, detail="No accessible patients")
+
         patient_detail = _build_patient_detail(patient_row, con, lexicon)
         entries = [_to_summary(row, lexicon) for row in record.list_entries(con, patient_row["id"])]
         return {
