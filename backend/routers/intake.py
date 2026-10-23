@@ -23,6 +23,8 @@ from backend.intake.pipeline import (
     run_intake,
     run_speech_intake,
 )
+from backend.auth.router import require_auth
+from backend.db import session as db_session
 from backend.nlp.lexicon import get_lexicon
 from backend.nlp.normalize import normalize
 from backend.schemas import (
@@ -89,7 +91,10 @@ def _respond(result: IntakeResult) -> IntakeResponse:
 
 
 @router.post("/intake/text", response_model=IntakeResponse)
-def intake_text(payload: IntakeRequest) -> IntakeResponse:
+def intake_text(
+    payload: IntakeRequest,
+    current_user: dict = Depends(require_auth),
+) -> IntakeResponse:
     """Direct clinical text intake with lexicon-constrained correction and 3-tier normalization."""
     return _respond(
         collect(
@@ -103,7 +108,10 @@ def intake_text(payload: IntakeRequest) -> IntakeResponse:
 
 
 @router.post("/intake/speech", response_model=IntakeResponse)
-def intake_speech(payload: SpeechIntakeRequest) -> IntakeResponse:
+def intake_speech(
+    payload: SpeechIntakeRequest,
+    current_user: dict = Depends(require_auth),
+) -> IntakeResponse:
     """Nepali Speech Pipeline: processes spoken FCHV or patient ASR transcripts with acoustic uncertainty propagation."""
     return _respond(
         run_speech_intake(
@@ -121,6 +129,7 @@ async def intake_voice(
     file: UploadFile = File(...),
     use_model: bool = Form(default=True),
     correct: bool = Form(default=True),
+    current_user: dict = Depends(require_auth),
 ) -> IntakeResponse:
     """Raw audio upload intake: fails closed with explicit clinical warning when backend lacks audio waveform API."""
     upload = await _read_upload(file)
@@ -141,6 +150,7 @@ async def intake_ocr(
     document_class: str | None = Form(default=None),
     use_model: bool = Form(default=True),
     correct: bool = Form(default=True),
+    current_user: dict = Depends(require_auth),
 ) -> IntakeResponse:
     """Document intake: digital PDFs are extracted via PyMuPDF instantly; images are processed via vision OCR."""
     upload = await _read_upload(file)
@@ -156,26 +166,6 @@ async def intake_ocr(
     )
 
 
-def _sse(events: Iterator[IntakeEvent]) -> Iterator[str]:
-    """Serialize intake events as SSE frames."""
-    try:
-        lexicon = get_lexicon()
-        for event in events:
-            if isinstance(event.data, IntakeResult):
-                body = event.data.to_response(lexicon).model_dump()
-            else:
-                body = event.data
-            yield f"event: {event.name}\ndata: {json.dumps({'event': event.name, 'data': body}, ensure_ascii=False)}\n\n"
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Intake stream aborted by pipeline error")
-        error_body = {"event": "error", "data": {"error": type(exc).__name__, "detail": str(exc)}}
-        yield f"event: error\ndata: {json.dumps(error_body, ensure_ascii=False)}\n\n"
-    finally:
-        closer = getattr(events, "close", None)
-        if callable(closer):
-            closer()
-
-
 @router.post("/intake/stream")
 async def intake_stream(
     file: UploadFile | None = File(default=None),
@@ -183,6 +173,7 @@ async def intake_stream(
     document_class: str | None = Form(default=None),
     use_model: bool = Form(default=True),
     correct: bool = Form(default=True),
+    current_user: dict = Depends(require_auth),
 ) -> StreamingResponse:
     """Streamed intake returning Server-Sent Events (SSE) across extraction, correction, and normalization."""
     if file is None and not (text or "").strip():
@@ -212,7 +203,10 @@ async def intake_stream(
 
 
 @router.post("/intake/normalize", response_model=NormalizeResponse)
-def direct_normalize(payload: NormalizeRequest) -> NormalizeResponse:
+def direct_normalize(
+    payload: NormalizeRequest,
+    current_user: dict = Depends(require_auth),
+) -> NormalizeResponse:
     """Direct 3-tier normalization endpoint."""
     from backend.nlp.tier3 import GemmaTier3Matcher
     tier3_matcher = GemmaTier3Matcher() if payload.use_model else None
@@ -222,6 +216,7 @@ def direct_normalize(payload: NormalizeRequest) -> NormalizeResponse:
 
 @router.get("/lexicon")
 def list_lexicon_concepts(
+    current_user: dict = Depends(require_auth),
     concept_type: str | None = Query(default=None, description="Filter by concept_type"),
     q: str | None = Query(default=None, description="Search query across Devanagari, Romanized, or English"),
 ) -> dict[str, Any]:
