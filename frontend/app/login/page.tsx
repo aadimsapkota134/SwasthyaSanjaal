@@ -1,0 +1,106 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
+
+export const dynamic = "force-dynamic";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    try {
+      const success = await login(email, password);
+      if (success) {
+        router.push("/");
+      } else {
+        setError("Invalid email or password. Please try again.");
+      }
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center bg-[#f1f5f9] p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-md border border-[#e2e8f0] p-8">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-[#0f6b54] rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <span className="text-white font-bold text-2xl">SS</span>
+            </div>
+            <h1 className="text-2xl font-bold text-[#0f172a]">Welcome back</h1>
+            <p className="text-[#475569] mt-2">
+              Sign in to Swasthya Sanjaal to access clinical records.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-6 p-3 bg-[#fef2f2] border border-[#fecaca] rounded-lg text-[#b91c1c] text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#0f172a] mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                className="w-full px-4 py-2 border border-[#e2e8f0] rounded-lg focus:ring-2 focus:ring-[#0f6b54] focus:border-transparent outline-none"
+                placeholder="you@clinic.org"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-[#0f172a] mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                className="w-full px-4 py-2 border border-[#e2e8f0] rounded-lg focus:ring-2 focus:ring-[#0f6b54] focus:border-transparent outline-none"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 px-4 bg-[#0f6b54] hover:bg-[#0d5a48] text-white font-semibold rounded-lg disabled:opacity-60 transition-colors"
+            >
+              {isLoading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <div className="mt-8 pt-4 border-t border-[#e2e8f0] text-center">
+            <p className="text-sm text-[#475569] mb-3">
+              Don't have an account? Contact your clinic administrator to create one.
+            </p>
+            <Link href="/" className="text-sm text-[#0f6b54] hover:underline">
+              ← Return to dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
