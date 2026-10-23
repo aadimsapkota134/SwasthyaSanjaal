@@ -9,9 +9,10 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.auth.csrf import CsrfMiddleware
+from backend.auth.router import router as auth_router
 from backend.config import settings
 from backend.db import TABLES, init_db, session
-from backend.routers import auth as auth_router
 from backend.routers import eval as eval_router
 from backend.routers import intake as intake_router
 from backend.routers import patients as patients_router
@@ -98,6 +99,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(CsrfMiddleware)
 
 api = APIRouter(prefix="/api/v1")
 

@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from backend.auth.password import hash_password, verify_password
+from backend.auth.csrf import generate_csrf_token, set_csrf_cookie
 from backend.auth.audit import audit
 from backend.auth.session import (
     cleanup_expired_sessions,
@@ -297,6 +298,8 @@ def login(
             ),
         }
     )
+    csrf_token = generate_csrf_token()
+    set_csrf_cookie(response, csrf_token)
     response.set_cookie(
         key=settings.session_cookie_name,
         value=token,
