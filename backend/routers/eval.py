@@ -8,9 +8,10 @@ Romanized, Code-Mixed, Negation, and OCR-corrupted test cases.
 from __future__ import annotations
 
 from typing import Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.auth.router import require_auth
 from backend.db import session
 from backend.eval.bench import (
     ItemResult,
@@ -158,7 +159,10 @@ class RunListRow(BaseModel):
 
 
 @router.post("/run", response_model=EvalRunResponse)
-def execute_eval(payload: EvalRunRequest | None = None) -> EvalRunResponse:
+def execute_exec(
+    payload: EvalRunRequest | None = None,
+    current_user: dict = Depends(require_auth),
+) -> EvalRunResponse:
     """Executes live NepClinBench evaluation against active clinical lexicon."""
     request = payload or EvalRunRequest()
     items = load_items()
@@ -177,21 +181,28 @@ def execute_eval(payload: EvalRunRequest | None = None) -> EvalRunResponse:
 
 
 @router.get("/latest", response_model=EvalRunResponse)
-def get_latest_eval() -> EvalRunResponse:
+def get_latest_eval(
+    current_user: dict = Depends(require_auth),
+) -> EvalRunResponse:
     """Returns the latest evaluation report, computing it on demand if no prior runs exist."""
     summary = run_benchmark(lexicon=get_lexicon())
     return EvalRunResponse.from_summary(summary, persisted=False)
 
 
 @router.get("/runs", response_model=list[RunListRow])
-def get_historical_runs() -> list[RunListRow]:
+def get_historical_runs(
+    current_user: dict = Depends(require_auth),
+) -> list[RunListRow]:
     """Lists historical benchmark runs stored in database."""
     with session() as con:
         return [RunListRow(**row) for row in list_runs(con)]
 
 
 @router.get("/runs/{run_id}")
-def get_run_details(run_id: str) -> dict[str, Any]:
+def get_run_details(
+    run_id: str,
+    current_user: dict = Depends(require_auth),
+) -> dict[str, Any]:
     """Retrieves all stored item predictions for a historical evaluation run."""
     with session() as con:
         rows = read_run(run_id, con)

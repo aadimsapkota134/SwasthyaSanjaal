@@ -14,8 +14,8 @@ def client():
         yield test_client
 
 
-def test_get_patient_fhir_bundle(client):
-    response = client.get("/api/v1/patients/patient_ram/fhir")
+def test_get_patient_fhir_bundle(clinician_client):
+    response = clinician_client.get("/api/v1/patients/patient_ram/fhir")
     assert response.status_code == 200
     data = response.json()
 
@@ -47,11 +47,11 @@ def test_get_patient_fhir_bundle(client):
     assert "Penicillin" in allergy_res["code"]["text"]
 
 
-def test_fhir_validates_against_model(client):
+def test_fhir_validates_against_model(clinician_client):
     """Every resource in the bundle must pass fhir.resources R4 validation."""
     from fhir.resources.bundle import Bundle
 
-    response = client.get("/api/v1/patients/patient_ram/fhir")
+    response = clinician_client.get("/api/v1/patients/patient_ram/fhir")
     assert response.status_code == 200
     data = response.json()
 
@@ -66,9 +66,9 @@ def test_fhir_validates_against_model(client):
     assert len(bundle.entry) >= 3
 
 
-def test_fhir_resource_structure(client):
+def test_fhir_resource_structure(clinician_client):
     """Verify FHIR resource fields are structurally correct."""
-    response = client.get("/api/v1/patients/patient_ram/fhir")
+    response = clinician_client.get("/api/v1/patients/patient_ram/fhir")
     assert response.status_code == 200
     data = response.json()
 
@@ -98,8 +98,8 @@ def test_fhir_resource_structure(client):
             assert ref == f"Patient/{patient_res['id']}"
 
 
-def test_fhir_strictly_excludes_negated_findings(client):
-    response = client.get("/api/v1/patients/patient_ram/fhir")
+def test_fhir_strictly_excludes_negated_findings(clinician_client):
+    response = clinician_client.get("/api/v1/patients/patient_ram/fhir")
     assert response.status_code == 200
     data = response.json()
 
@@ -113,8 +113,8 @@ def test_fhir_strictly_excludes_negated_findings(client):
                 assert not c.get("display", "").lower().startswith("no ")
 
 
-def test_fhir_not_found(client):
-    res = client.get("/api/v1/patients/nonexistent_patient/fhir")
+def test_fhir_not_found(clinician_client):
+    res = clinician_client.get("/api/v1/patients/nonexistent_patient/fhir")
     assert res.status_code == 404
 
 
@@ -153,9 +153,9 @@ def test_validate_bundle_rejects_invalid_resources():
         )
 
 
-def test_fhir_patient_references_point_to_bundle_resources(client):
+def test_fhir_patient_references_point_to_bundle_resources(clinician_client):
     """Every Patient/... reference must resolve to the Patient resource in the bundle."""
-    response = client.get("/api/v1/patients/patient_ram/fhir")
+    response = clinician_client.get("/api/v1/patients/patient_ram/fhir")
     assert response.status_code == 200
     data = response.json()
 
