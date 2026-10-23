@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   fetchMyPatient,
   fetchMyReports,
+  getMyReportFileUrl,
   postIntakeFile,
   postIntakeText,
   postMyReport,
@@ -14,14 +15,14 @@ import {
 import type {
   IntakeResponse,
   PatientDetail,
-  RecordEntrySummary,
+  RecordEntryDetail,
 } from "@/lib/contracts";
 
 export default function MyReportsPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [patient, setPatient] = useState<PatientDetail | null>(null);
-  const [reports, setReports] = useState<RecordEntrySummary[]>([]);
+  const [reports, setReports] = useState<RecordEntryDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -361,35 +362,145 @@ export default function MyReportsPage() {
                   </p>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem" }}>
-                  {reports.map((r) => (
-                    <div
-                      key={r.id}
-                      style={{
-                        padding: "1rem",
-                        borderRadius: 12,
-                        border: "1px solid var(--line)",
-                        background: "#fff",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
-                            {r.facility_name || "Health Clinic"}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+                  {reports.map((r) => {
+                    const mainText = r.corrected_text || r.raw_transcript || r.summary_np;
+                    const summaryPoints = r.meaning_np || r.summary_np;
+                    const hasAttachment = Boolean(r.asset_path);
+
+                    return (
+                      <div
+                        key={r.id}
+                        style={{
+                          padding: "1.25rem",
+                          borderRadius: 14,
+                          border: "1px solid #e2e8f0",
+                          background: "#ffffff",
+                          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.85rem",
+                        }}
+                      >
+                        {/* Header with facility, date, and document type */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--ink)" }}>
+                              🏥 {r.facility_name || "Health Post / Clinic"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "var(--ink-soft)", marginTop: 2 }}>
+                              📅 {r.record_date} {r.record_date_bs && `(${r.record_date_bs})`} · Type: <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{r.document_class || "Document"}</span>
+                            </div>
                           </div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--ink-soft)", marginTop: 2 }}>
-                            {r.record_date} {r.record_date_bs && `(${r.record_date_bs})`} · {r.document_class || "Document"}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span className="tag tag--neutral" style={{ textTransform: "uppercase", fontSize: "0.65rem", letterSpacing: "0.5px" }}>
+                              {r.extraction_method || "direct"}
+                            </span>
+                            {hasAttachment && (
+                              <span className="tag tag--committed" style={{ fontSize: "0.65rem" }}>
+                                📎 Attached
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <span className="tag tag--neutral" style={{ textTransform: "capitalize", fontSize: "0.7rem" }}>
-                          {r.extraction_method || "direct"}
-                        </span>
+
+                        {/* Div 1: Main Extracted Clinical Text */}
+                        <div
+                          style={{
+                            background: "#f8fafc",
+                            border: "1px solid #cbd5e1",
+                            borderRadius: 10,
+                            padding: "0.75rem 1rem",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#475569", marginBottom: 4, letterSpacing: "0.5px" }}>
+                            📄 Main Extracted Content (मुख्य पाठ)
+                          </div>
+                          <div style={{ fontSize: "0.9rem", color: "#0f172a", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                            {mainText}
+                          </div>
+                        </div>
+
+                        {/* Div 2: Small Text Summarizing Important Points */}
+                        <div
+                          style={{
+                            background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
+                            border: "1px solid #a7f3d0",
+                            borderRadius: 10,
+                            padding: "0.75rem 1rem",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#065f46", marginBottom: 4, letterSpacing: "0.5px" }}>
+                            💡 Summary & Key Clinical Points (महत्वपूर्ण बुँदाहरू)
+                          </div>
+                          <div style={{ fontSize: "0.85rem", color: "#166534", lineHeight: 1.45 }}>
+                            {summaryPoints}
+                          </div>
+
+                          {/* Concepts badge row */}
+                          {r.concepts && r.concepts.length > 0 && (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                              {r.concepts.map((c, idx) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    background: "#ffffff",
+                                    color: "#065f46",
+                                    padding: "2px 8px",
+                                    borderRadius: 12,
+                                    border: "1px solid #bbf7d0",
+                                  }}
+                                >
+                                  💊 {c.canonical_np} ({c.canonical_en})
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Div 3: Action Bar with Open Report File Option */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingTop: "0.5rem",
+                            borderTop: "1px dashed #e2e8f0",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.75rem", color: "var(--ink-soft)" }}>
+                            ID: <code style={{ fontSize: "0.75rem" }}>{r.id}</code>
+                          </div>
+                          <div>
+                            {hasAttachment ? (
+                              <a
+                                href={getMyReportFileUrl(r.id)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="button button--secondary"
+                                style={{
+                                  fontSize: "0.8rem",
+                                  padding: "0.35rem 0.85rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  textDecoration: "none",
+                                }}
+                              >
+                                <span>👁️</span> Open Original Document
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic" }}>
+                                Direct clinical text entry (no attachment)
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.85rem", color: "#334155", marginTop: "0.5rem" }}>
-                        {r.summary_np}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

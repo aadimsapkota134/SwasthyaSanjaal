@@ -214,8 +214,12 @@ export async function fetchMyPatient(): Promise<PatientDetail | null> {
   return fetchJson<PatientDetail>("/api/v1/me/patient");
 }
 
-export async function fetchMyReports(): Promise<RecordEntrySummary[] | null> {
-  return fetchJson<RecordEntrySummary[]>("/api/v1/me/reports");
+export async function fetchMyReports(): Promise<RecordEntryDetail[] | null> {
+  return fetchJson<RecordEntryDetail[]>("/api/v1/me/reports");
+}
+
+export function getMyReportFileUrl(entryId: string): string {
+  return `${getApiBaseUrl()}/api/v1/me/reports/${entryId}/file`;
 }
 
 export async function postMyReport(

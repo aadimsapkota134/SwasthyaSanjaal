@@ -816,10 +816,10 @@ def get_my_patient(
         return _build_patient_detail(row, con, lexicon)
 
 
-@router.get("/me/reports", response_model=list[RecordEntrySummary])
+@router.get("/me/reports", response_model=list[RecordEntryDetail])
 def get_my_reports(
     current_user: dict = Depends(require_auth),
-) -> list[RecordEntrySummary]:
+) -> list[RecordEntryDetail]:
     """Return only clinical reports and documents belonging to the authenticated individual."""
     lexicon = get_lexicon()
     with db_session() as con:
@@ -835,7 +835,54 @@ def get_my_reports(
         if not pat:
             return []
         entries = record.list_entries(con, pat["id"])
-        return [_to_summary(row, lexicon) for row in entries]
+        return [_to_detail(row, lexicon) for row in entries]
+
+
+@router.get("/me/reports/{entry_id}/file")
+def get_my_report_file(
+    entry_id: str,
+    current_user: dict = Depends(require_auth),
+) -> Response:
+    """Safely stream the original uploaded document/asset associated with this personal report."""
+    from fastapi.responses import FileResponse
+    from backend.intake.storage import resolve_upload
+
+    with db_session() as con:
+        pat = con.execute(
+            """
+            SELECT p.id FROM patients p
+            JOIN patient_access pa ON pa.patient_id = p.id
+            WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+            ORDER BY pa.granted_at ASC LIMIT 1
+            """,
+            {"user_id": current_user["user_id"]},
+        ).fetchone()
+        if not pat:
+            raise HTTPException(status_code=404, detail="No patient record found")
+
+        entry = record.get_entry(con, entry_id)
+        if not entry or entry["patient_id"] != pat["id"]:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        asset_name = entry["asset_path"]
+        if not asset_name:
+            raise HTTPException(status_code=404, detail="No physical file attached to this report")
+
+        try:
+            file_path = resolve_upload(asset_name)
+        except Exception:
+            raise HTTPException(status_code=404, detail="File could not be found")
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+
+        # Determine media type
+        suffix = file_path.suffix.lower()
+        media_type = "application/pdf" if suffix == ".pdf" else (
+            "image/png" if suffix == ".png" else "image/jpeg"
+        )
+        return FileResponse(path=file_path, media_type=media_type, filename=file_path.name)
+
 
 
 @router.post("/me/reports", response_model=RecordEntryDetail)
