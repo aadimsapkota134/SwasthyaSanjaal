@@ -41,6 +41,7 @@ from backend.db import session as db_session
 # Common passwords that should be rejected (OWASP top 1000 subset)
 _COMMON_PASSWORDS = {
     "password",
+    "password123",
     "123456",
     "12345678",
     "123456789",
@@ -128,7 +129,19 @@ class CreateUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     full_name: str | None = None
-    role: str = Field(default="clinician", pattern="^(administrator|clinician)$")
+    role: str = Field(default="clinician", pattern="^(administrator|clinician|individual)$")
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    full_name: str | None = None
+    role: str = Field(default="individual", pattern="^(individual|clinician)$")
 
     @field_validator("password")
     @classmethod
@@ -138,7 +151,7 @@ class CreateUserRequest(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     is_active: bool | None = None
-    role: str | None = Field(default=None, pattern="^(administrator|clinician)$")
+    role: str | None = Field(default=None, pattern="^(administrator|clinician|individual)$")
     full_name: str | None = None
 
 
@@ -341,6 +354,123 @@ def login(
                 datetime.now(timezone.utc).timestamp() + settings.session_ttl_seconds
             ),
         }
+    )
+    csrf_token = generate_csrf_token()
+    set_csrf_cookie(response, csrf_token)
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=token,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite=settings.session_cookie_samesite,
+        path=settings.session_cookie_path,
+        max_age=settings.session_ttl_seconds,
+    )
+    return response
+
+
+@router.post("/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/auth/signup", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+def signup(
+    payload: SignupRequest,
+    request: Request,
+):
+    """Register a new user account (individual or clinician) and create a session.
+
+    Provisions access to demo patient records so that new users, including
+    community individuals, can immediately explore the health ledger,
+    AI normalization, and patient timeline.
+    """
+    ip_address = request.client.host if request.client else "unknown"
+    email = payload.email.lower().strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    with db_session() as con:
+        # Check if email is already taken
+        existing = con.execute(
+            "SELECT id FROM users WHERE email = :email",
+            {"email": email},
+        ).fetchone()
+        if existing is not None:
+            audit(
+                con,
+                action="signup",
+                actor_email=email,
+                outcome="failure",
+                detail="Email already registered",
+                ip_address=ip_address,
+                user_agent=request.headers.get("user-agent"),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email address already exists",
+            )
+
+        user_id = secrets.token_urlsafe(16)
+        password_hash_val = hash_password(payload.password)
+        role = payload.role if payload.role in {"individual", "clinician"} else "individual"
+
+        con.execute(
+            """
+            INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
+            VALUES (:id, :email, :password_hash, :full_name, :role, 1, :created_at, :updated_at)
+            """,
+            {
+                "id": user_id,
+                "email": email,
+                "password_hash": password_hash_val,
+                "full_name": payload.full_name.strip() if payload.full_name else None,
+                "role": role,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            },
+        )
+
+        # Grant patient_access to synthetic demo patients so the account can immediately use the app
+        demo_patients = con.execute("SELECT id FROM patients").fetchall()
+        for p in demo_patients:
+            access_id = secrets.token_urlsafe(16)
+            con.execute(
+                """
+                INSERT OR IGNORE INTO patient_access (id, user_id, patient_id, granted_by, granted_at)
+                VALUES (:id, :user_id, :patient_id, NULL, :granted_at)
+                """,
+                {
+                    "id": access_id,
+                    "user_id": user_id,
+                    "patient_id": p["id"],
+                    "granted_at": now_iso,
+                },
+            )
+
+        audit(
+            con,
+            action="signup",
+            actor_id=user_id,
+            actor_email=email,
+            outcome="success",
+            detail=f"Registered account with role '{role}'",
+            ip_address=ip_address,
+            user_agent=request.headers.get("user-agent"),
+        )
+
+        token = create_session(
+            con,
+            user_id=user_id,
+            ip_address=ip_address,
+            user_agent=request.headers.get("user-agent"),
+        )
+
+    response = JSONResponse(
+        content={
+            "user_id": user_id,
+            "email": email,
+            "role": role,
+            "expires_at": (
+                datetime.now(timezone.utc).timestamp() + settings.session_ttl_seconds
+            ),
+        },
+        status_code=status.HTTP_201_CREATED,
     )
     csrf_token = generate_csrf_token()
     set_csrf_cookie(response, csrf_token)

@@ -31,6 +31,8 @@ class CsrfMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.exempt_paths = exempt_paths or {
             "/api/v1/login",
+            "/api/v1/signup",
+            "/api/v1/auth/signup",
             "/api/v1/qr/decode",
             "/api/v1/intake/",
             "/api/v1/patients/",
