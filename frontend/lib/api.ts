@@ -81,9 +81,8 @@ export async function login(
       role: string;
       expires_at: number;
     };
-    const csrfToken = response.headers
-      .get("set-cookie")
-      ?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
+    const csrfToken =
+      response.headers?.get?.("set-cookie")?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
     return {
       user: {
         user_id: body.user_id,
@@ -128,9 +127,7 @@ export async function signup(
       expires_at: number;
     };
     const csrfToken =
-      response.headers
-        .get("set-cookie")
-        ?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
+      response.headers?.get?.("set-cookie")?.match(/csrf_token=([^;]+)/)?.[1] ?? null;
     return {
       user: {
         user_id: body.user_id,

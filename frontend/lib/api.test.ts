@@ -1,6 +1,6 @@
 "use client";
 
-import { fetchPatients, fetchHealth } from "./api";
+import { fetchPatients, fetchHealth, signup } from "./api";
 import type { PatientSummary } from "./contracts";
 
 // Mock fetch globally for jsdom environment
@@ -20,6 +20,7 @@ function mockResponse(data: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: jest.fn().mockReturnValue(null) },
     json: jest.fn().mockResolvedValue(data),
   } as unknown as Response;
 }
@@ -104,6 +105,41 @@ describe("fetchHealth", () => {
     );
 
     const result = await fetchHealth();
+    expect(result).toBeNull();
+  });
+});
+
+describe("signup", () => {
+  it("returns user response on successful registration", async () => {
+    const mockSignupResponse = {
+      user_id: "user_123",
+      email: "new.user@example.com",
+      role: "individual",
+      expires_at: 1792770000,
+    };
+
+    mockFetch.mockResolvedValueOnce(mockResponse(mockSignupResponse, 201));
+
+    const result = await signup(
+      "new.user@example.com",
+      "SecurePass123!",
+      "New User",
+      "individual"
+    );
+    expect(result).not.toBeNull();
+    expect(result?.user.email).toBe("new.user@example.com");
+    expect(result?.user.role).toBe("individual");
+  });
+
+  it("returns null on conflict or failed registration", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse(
+        { detail: "An account with this email address already exists" },
+        409
+      )
+    );
+
+    const result = await signup("existing@example.com", "SecurePass123!");
     expect(result).toBeNull();
   });
 });
