@@ -71,7 +71,7 @@ describe("DashboardPage", () => {
     mockFetchPatients.mockResolvedValue([mockPatient]);
   });
 
-  it("renders loading state initially", () => {
+  it("renders loading state initially", async () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -82,11 +82,13 @@ describe("DashboardPage", () => {
       refreshUser: jest.fn(),
     });
 
-    render(<DashboardPage />);
+    await act(async () => {
+      render(<DashboardPage />);
+    });
     expect(screen.getByText(/loading…/i)).toBeTruthy();
   });
 
-  it("redirects to login when not authenticated", async () => {
+  it("renders guest welcome and signup prompt when not authenticated", async () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -97,12 +99,13 @@ describe("DashboardPage", () => {
       refreshUser: jest.fn(),
     });
 
-    mockRouterPush.mockReset();
-
-    render(<DashboardPage />);
-    await waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith("/login");
+    await act(async () => {
+      render(<DashboardPage />);
     });
+    await waitFor(() => {
+      expect(screen.getByText(/Welcome! Anyone can register/i)).toBeTruthy();
+    });
+    expect(screen.getByText(/Create Free Account/i)).toBeTruthy();
   });
 
   it("renders patient cards when patients are loaded", async () => {

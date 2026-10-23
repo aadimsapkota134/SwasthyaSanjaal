@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { fetchHealth, fetchPatients } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { PatientSummary } from "@/lib/contracts";
@@ -10,55 +9,71 @@ import type { PatientSummary } from "@/lib/contracts";
 type HealthService = { service: string; status: string; detail?: string };
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [health, setHealth] = useState<{ status: string; model_backend: string; model: string; services?: HealthService[] } | null>(null);
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const [health, setHealth] = useState<{
+    status: string;
+    model_backend: string;
+    model: string;
+    services?: HealthService[];
+  } | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientSummary[] | null>(null);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-    if (authLoading || !isAuthenticated) {
-      return;
-    }
-
     let cancelled = false;
 
-    queueMicrotask(() => {
-      if (!cancelled) setLoading(true);
-    });
+    // Fetch backend connection status for everyone (guest & logged-in)
+    fetchHealth()
+      .then((h) => {
+        if (!cancelled) setHealth(h);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setHealthError(
+            e instanceof Error ? e.message : "Unable to reach backend"
+          );
+      });
 
-    fetchHealth().then((h) => {
-      if (!cancelled) setHealth(h);
-    }).catch((e) => {
-      if (!cancelled) setHealthError(e instanceof Error ? e.message : "Unable to reach backend");
-    });
-    fetchPatients().then((p) => {
-      if (!cancelled) {
-        if (p === null) {
-          setPatientsError("Unable to load patients. Please log in again.");
-        } else {
-          setPatients(p);
-        }
-      }
-    }).catch((e) => {
-      if (!cancelled) setPatientsError(e instanceof Error ? e.message : "Unable to load patients");
-    }).finally(() => {
+    // If authenticated, fetch user's accessible patients
+    if (isAuthenticated) {
+      setLoading(true);
+      fetchPatients()
+        .then((p) => {
+          if (!cancelled) {
+            if (p === null) {
+              setPatientsError("Unable to load patients. Please log in again.");
+            } else {
+              setPatients(p);
+            }
+          }
+        })
+        .catch((e) => {
+          if (!cancelled)
+            setPatientsError(
+              e instanceof Error ? e.message : "Unable to load patients"
+            );
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    } else {
       if (!cancelled) setLoading(false);
-    });
+    }
 
-    return () => { cancelled = true; };
-  }, [isAuthenticated, authLoading, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
-  if (authLoading || loading) {
+  if (authLoading || (isAuthenticated && loading)) {
     return (
       <div className="page">
-        <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
+        <div
+          className="card panel__inner"
+          style={{ padding: "3rem 1rem", textAlign: "center" }}
+        >
           <p style={{ color: "var(--ink-soft)" }}>Loading…</p>
         </div>
       </div>
@@ -71,28 +86,171 @@ export default function DashboardPage() {
     <div className="page">
       <section className="panel panel--paper">
         <div className="panel__inner">
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#0f6b54", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "1.3rem" }}>SS</div>
-            <div>
-              <span className="eyebrow" style={{ margin: 0 }}>Swasthya Sanjaal</span>
-              <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                स्वास्थ्य सञ्जाल <span className="tag tag--committed">Synthetic demo data</span>
+          {/* Header branding */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 14,
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 16,
+                  background: "#0f6b54",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 800,
+                  fontSize: "1.4rem",
+                  boxShadow: "0 4px 12px rgba(15, 107, 84, 0.25)",
+                }}
+              >
+                SS
               </div>
+              <div>
+                <span className="eyebrow" style={{ margin: 0 }}>
+                  Swasthya Sanjaal
+                </span>
+                <div
+                  style={{
+                    fontSize: "1.35rem",
+                    fontWeight: 800,
+                    color: "var(--ink)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginTop: 2,
+                  }}
+                >
+                  स्वास्थ्य सञ्जाल
+                  <span className="tag tag--committed">Synthetic demo data</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick auth status badge */}
+            <div>
+              {isAuthenticated ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "#ecfdf5",
+                    border: "1px solid #a7f3d0",
+                    padding: "6px 12px",
+                    borderRadius: 12,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  <span style={{ fontSize: "1rem" }}>👤</span>
+                  <span style={{ fontWeight: 600, color: "#065f46" }}>
+                    {user?.full_name || user?.email}
+                  </span>
+                  <span
+                    className="tag tag--neutral"
+                    style={{ textTransform: "capitalize", fontSize: "0.7rem" }}
+                  >
+                    {user?.role || "user"}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Link
+                    href="/login"
+                    className="button button--secondary"
+                    style={{ fontSize: "0.85rem", padding: "0.45rem 0.9rem" }}
+                  >
+                    Sign in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="button button--primary"
+                    style={{ fontSize: "0.85rem", padding: "0.45rem 0.9rem" }}
+                  >
+                    Create Account
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
-          <h1 className="title">Clinical Health Ledger</h1>
+          <h1 className="title">Nepali Clinical Health Ledger</h1>
           <p className="lede">
             Convert Nepali clinical input — prescriptions, lab reports, and notes — into
             reviewed, longitudinal patient records. All writes require explicit human approval.
           </p>
 
+          {/* Guest welcome banner when not authenticated */}
+          {!isAuthenticated && (
+            <div
+              className="card"
+              style={{
+                marginTop: "1.25rem",
+                background: "linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)",
+                borderColor: "#bbf7d0",
+                padding: "1.5rem",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <span style={{ fontSize: "2rem" }}>🏥</span>
+                <div style={{ flex: 1 }}>
+                  <h2
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: 700,
+                      color: "#065f46",
+                      margin: "0 0 0.4rem 0",
+                    }}
+                  >
+                    Welcome! Anyone can register and explore the platform.
+                  </h2>
+                  <p
+                    style={{
+                      fontSize: "0.9rem",
+                      color: "#166534",
+                      margin: "0 0 1rem 0",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Whether you are an individual managing personal health summaries or a
+                    healthcare clinician processing doctor prescriptions, Swasthya Sanjaal lets
+                    you ingest documents, normalize medical terminology, and maintain FHIR R4
+                    clinical timelines.
+                  </p>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Link
+                      href="/signup"
+                      className="button button--primary"
+                      style={{ fontSize: "0.85rem", padding: "0.5rem 1.1rem" }}
+                    >
+                      🚀 Create Free Account (Sign up)
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="button button--secondary"
+                      style={{ fontSize: "0.85rem", padding: "0.5rem 1.1rem" }}
+                    >
+                      Sign In to Existing Account
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Connection status */}
-          <div className="card" style={{ marginTop: "1.5rem" }}>
+          <div className="card" style={{ marginTop: "1.25rem" }}>
             <div className="card__title">Backend connection</div>
-            {loading ? (
-              <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>Connecting…</p>
-            ) : healthError ? (
+            {healthError ? (
               <div className="alert alert--error">
                 Unable to reach the backend: {healthError}. Make sure the FastAPI server is
                 running on <code style={{ color: "var(--brand)" }}>http://localhost:8000</code>.
@@ -114,30 +272,118 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Patients */}
+          {/* Patient Ledger Section */}
           <div style={{ marginTop: "1.5rem" }}>
-            <div className="card__title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span>Patients</span>
-              <Link href="/intake" className="button button--secondary" style={{ fontSize: "0.85rem", padding: "0.4rem 0.85rem" }}>
-                New intake
-              </Link>
+            <div
+              className="card__title"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              <span>{isAuthenticated ? "Your Patients" : "Demonstration Patients Ledger"}</span>
+              {isAuthenticated && (
+                <Link
+                  href="/intake"
+                  className="button button--secondary"
+                  style={{ fontSize: "0.85rem", padding: "0.4rem 0.85rem" }}
+                >
+                  New intake
+                </Link>
+              )}
             </div>
 
-            {patientsError ? (
+            {!isAuthenticated ? (
+              /* Public / Guest Demo Preview */
+              <div className="grid-2">
+                <div
+                  className="card"
+                  style={{
+                    border: "1px dashed var(--line)",
+                    background: "#f8fafc",
+                    padding: "1.25rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      color: "var(--ink)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Ram Bahadur Shrestha (राम बहादुर श्रेष्ठ)
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--ink-soft)", marginBottom: "0.5rem" }}>
+                    SS-NP-8841 · B+ · Kavrepalanchok
+                  </div>
+                  <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", margin: "0.5rem 0" }}>
+                    Chronic hypertension and asthma management timeline with synthetic lab reports and prescription OCR.
+                  </p>
+                  <Link
+                    href="/login"
+                    className="button button--ghost"
+                    style={{ fontSize: "0.85rem", padding: "0.35rem 0.75rem", marginTop: "0.5rem" }}
+                  >
+                    Sign in to view record →
+                  </Link>
+                </div>
+
+                <div
+                  className="card"
+                  style={{
+                    border: "1px dashed var(--line)",
+                    background: "#f8fafc",
+                    padding: "1.25rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: 700,
+                      color: "var(--ink)",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Gita Sharma (गीता शर्मा)
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--ink-soft)", marginBottom: "0.5rem" }}>
+                    SS-NP-2309 · A+ · Lalitpur
+                  </div>
+                  <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", margin: "0.5rem 0" }}>
+                    Longitudinal prenatal visits, ultrasound notes, and iron supplement prescriptions.
+                  </p>
+                  <Link
+                    href="/login"
+                    className="button button--ghost"
+                    style={{ fontSize: "0.85rem", padding: "0.35rem 0.75rem", marginTop: "0.5rem" }}
+                  >
+                    Sign in to view record →
+                  </Link>
+                </div>
+              </div>
+            ) : patientsError ? (
               <div className="alert alert--error">
                 Unable to load patients: {patientsError}
               </div>
-            ) : patients === null ? (
+            ) : !patients || patients.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state__icon">👥</div>
                 <div className="empty-state__title">No patients assigned</div>
-                <p className="empty-state__desc">No patient records have been assigned to your account. Contact your administrator.</p>
-              </div>
-            ) : patients.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state__icon">👥</div>
-                <div className="empty-state__title">No patients assigned</div>
-                <p className="empty-state__desc">No patient records have been assigned to your account. Contact your administrator.</p>
+                <p className="empty-state__desc">
+                  No patient records have been assigned to your account yet. You can submit a new
+                  document intake to create your first record.
+                </p>
+                <Link
+                  href="/intake"
+                  className="button button--primary"
+                  style={{ marginTop: "1rem", fontSize: "0.85rem" }}
+                >
+                  Start first intake
+                </Link>
               </div>
             ) : (
               <div className="grid-2">
@@ -146,9 +392,21 @@ export default function DashboardPage() {
                     key={p.id}
                     href={`/patients/${p.id}`}
                     className="card"
-                    style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                    style={{
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "block",
+                      transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                    }}
                   >
-                    <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--ink)", marginBottom: "0.25rem" }}>
+                    <div
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 700,
+                        color: "var(--ink)",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       {p.name_np ? `${p.name} (${p.name_np})` : p.name}
                     </div>
                     <div style={{ fontSize: "0.85rem", color: "var(--ink-soft)", marginBottom: "0.5rem" }}>
@@ -164,7 +422,14 @@ export default function DashboardPage() {
                         <div className="metric__value">{p.gender_np || p.gender || "—"}</div>
                       </article>
                     </div>
-                    <div style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--brand)", fontWeight: 600 }}>
+                    <div
+                      style={{
+                        marginTop: "0.75rem",
+                        fontSize: "0.85rem",
+                        color: "var(--brand)",
+                        fontWeight: 600,
+                      }}
+                    >
                       Open record →
                     </div>
                   </Link>
@@ -173,11 +438,16 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div style={{ marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid var(--line)" }}>
+          <div
+            style={{
+              marginTop: "2rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--line)",
+            }}
+          >
             <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", margin: 0 }}>
               ⚠️ This is a demonstration system using synthetic patient data. No real patient
-              information is stored. Authentication and authorization are enabled — contact your
-              administrator for account access.
+              information is stored. Self-registration is enabled for individuals and clinicians.
             </p>
           </div>
         </div>
