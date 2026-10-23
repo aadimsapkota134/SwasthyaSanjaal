@@ -39,22 +39,36 @@ export function NavHeader() {
                 aria-current={isActive("/") ? "page" : undefined}
               >
                 <span className="nav-link__icon" aria-hidden="true">🏠</span>
-                Dashboard
+                {user?.role === "individual" ? "My Health" : "Dashboard"}
               </Link>
-              <Link
-                href="/intake"
-                className={`nav-link ${isActive("/intake") ? "nav-link--active" : ""}`}
-              >
-                <span className="nav-link__icon" aria-hidden="true">📥</span>
-                Intake
-              </Link>
-              <Link
-                href="/eval"
-                className={`nav-link ${isActive("/eval") ? "nav-link--active" : ""}`}
-              >
-                <span className="nav-link__icon" aria-hidden="true">📊</span>
-                Eval
-              </Link>
+              {user?.role === "individual" ? (
+                <>
+                  <Link
+                    href="/my-reports"
+                    className={`nav-link ${isActive("/my-reports") ? "nav-link--active" : ""}`}
+                  >
+                    <span className="nav-link__icon" aria-hidden="true">📄</span>
+                    My Reports
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/intake"
+                    className={`nav-link ${isActive("/intake") ? "nav-link--active" : ""}`}
+                  >
+                    <span className="nav-link__icon" aria-hidden="true">📥</span>
+                    Intake
+                  </Link>
+                  <Link
+                    href="/eval"
+                    className={`nav-link ${isActive("/eval") ? "nav-link--active" : ""}`}
+                  >
+                    <span className="nav-link__icon" aria-hidden="true">📊</span>
+                    Eval
+                  </Link>
+                </>
+              )}
               {user?.role === "administrator" && (
                 <Link
                   href="/admin"

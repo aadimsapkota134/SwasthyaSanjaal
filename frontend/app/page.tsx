@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchHealth, fetchPatients } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { PatientSummary } from "@/lib/contracts";
+import type { PatientDetail, PatientSummary, RecordEntrySummary } from "@/lib/contracts";
 
 type HealthService = { service: string; status: string; detail?: string };
 
@@ -18,6 +18,8 @@ export default function DashboardPage() {
   } | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientSummary[] | null>(null);
+  const [myPatient, setMyPatient] = useState<PatientDetail | null>(null);
+  const [myReports, setMyReports] = useState<RecordEntrySummary[]>([]);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,28 +38,53 @@ export default function DashboardPage() {
           );
       });
 
-    // If authenticated, fetch user's accessible patients
+    // If authenticated, fetch appropriate data depending on role
     if (isAuthenticated) {
       setLoading(true);
-      fetchPatients()
-        .then((p) => {
-          if (!cancelled) {
-            if (p === null) {
-              setPatientsError("Unable to load patients. Please log in again.");
-            } else {
-              setPatients(p);
-            }
-          }
-        })
-        .catch((e) => {
-          if (!cancelled)
-            setPatientsError(
-              e instanceof Error ? e.message : "Unable to load patients"
-            );
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
+      if (user?.role === "individual") {
+        import("@/lib/api").then(({ fetchMyPatient, fetchMyReports }) => {
+          Promise.all([fetchMyPatient(), fetchMyReports()])
+            .then(([pat, reps]) => {
+              if (!cancelled) {
+                if (pat) {
+                  setMyPatient(pat);
+                  setMyReports(reps || []);
+                } else {
+                  setPatientsError("No personal health record linked to this account.");
+                }
+              }
+            })
+            .catch((e) => {
+              if (!cancelled)
+                setPatientsError(
+                  e instanceof Error ? e.message : "Unable to load personal health record"
+                );
+            })
+            .finally(() => {
+              if (!cancelled) setLoading(false);
+            });
         });
+      } else {
+        fetchPatients()
+          .then((p) => {
+            if (!cancelled) {
+              if (p === null) {
+                setPatientsError("Unable to load patients. Please log in again.");
+              } else {
+                setPatients(p);
+              }
+            }
+          })
+          .catch((e) => {
+            if (!cancelled)
+              setPatientsError(
+                e instanceof Error ? e.message : "Unable to load patients"
+              );
+          })
+          .finally(() => {
+            if (!cancelled) setLoading(false);
+          });
+      }
     } else {
       if (!cancelled) setLoading(false);
     }
@@ -286,15 +313,31 @@ export default function DashboardPage() {
                 gap: 8,
               }}
             >
-              <span>{isAuthenticated ? "Your Patients" : "Demonstration Patients Ledger"}</span>
+              <span>
+                {isAuthenticated
+                  ? user?.role === "individual"
+                    ? "My Personal Health Summary"
+                    : "Your Patients"
+                  : "Demonstration Patients Ledger"}
+              </span>
               {isAuthenticated && (
-                <Link
-                  href="/intake"
-                  className="button button--secondary"
-                  style={{ fontSize: "0.85rem", padding: "0.4rem 0.85rem" }}
-                >
-                  New intake
-                </Link>
+                user?.role === "individual" ? (
+                  <Link
+                    href="/my-reports"
+                    className="button button--primary"
+                    style={{ fontSize: "0.85rem", padding: "0.4rem 0.85rem" }}
+                  >
+                    📄 Manage My Reports
+                  </Link>
+                ) : (
+                  <Link
+                    href="/intake"
+                    className="button button--secondary"
+                    style={{ fontSize: "0.85rem", padding: "0.4rem 0.85rem" }}
+                  >
+                    New intake
+                  </Link>
+                )
               )}
             </div>
 
@@ -369,7 +412,119 @@ export default function DashboardPage() {
               </div>
             ) : patientsError ? (
               <div className="alert alert--error">
-                Unable to load patients: {patientsError}
+                Unable to load records: {patientsError}
+              </div>
+            ) : user?.role === "individual" ? (
+              /* Individual Minimal Patient-Focused Dashboard */
+              <div>
+                {myPatient ? (
+                  <div
+                    className="card"
+                    style={{
+                      border: "2px solid #a7f3d0",
+                      background: "linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)",
+                      padding: "1.75rem",
+                      borderRadius: 16,
+                      boxShadow: "0 4px 16px rgba(15, 107, 84, 0.08)",
+                      marginBottom: "1.5rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        flexWrap: "wrap",
+                        gap: 12,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "1.3rem",
+                            fontWeight: 800,
+                            color: "var(--ink)",
+                          }}
+                        >
+                          {myPatient.name_np ? `${myPatient.name} (${myPatient.name_np})` : myPatient.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.9rem",
+                            color: "var(--brand)",
+                            fontWeight: 600,
+                            marginTop: 4,
+                          }}
+                        >
+                          {myPatient.sanjaal_id} · Blood Group: {myPatient.blood_group || "—"}
+                        </div>
+                      </div>
+                      <Link
+                        href="/my-reports"
+                        className="button button--primary"
+                        style={{ fontSize: "0.85rem", padding: "0.45rem 1rem" }}
+                      >
+                        ⚡ Generate Pre-Visit Report
+                      </Link>
+                    </div>
+
+                    {/* Personal Health Metrics */}
+                    <div className="metrics" style={{ marginTop: "1.25rem", gap: "0.75rem" }}>
+                      <article className="metric" style={{ padding: "0.75rem" }}>
+                        <span className="metric__label">Personal Reports</span>
+                        <div className="metric__value">{myReports.length}</div>
+                      </article>
+                      <article className="metric" style={{ padding: "0.75rem" }}>
+                        <span className="metric__label">Active Conditions</span>
+                        <div className="metric__value">{myPatient.conditions?.length || 0}</div>
+                      </article>
+                      <article className="metric" style={{ padding: "0.75rem" }}>
+                        <span className="metric__label">Documented Allergies</span>
+                        <div className="metric__value">{myPatient.allergies?.length || 0}</div>
+                      </article>
+                    </div>
+
+                    {/* Pre-Visit Report Generator Banner */}
+                    <div
+                      style={{
+                        marginTop: "1.25rem",
+                        padding: "1rem",
+                        background: "#ffffff",
+                        border: "1px solid #d1fae5",
+                        borderRadius: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#065f46", fontSize: "0.95rem" }}>
+                          🏥 Visiting a doctor or health post soon?
+                        </div>
+                        <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: 2 }}>
+                          Prepare a concise, plain-Nepali doctor visit summary from your latest prescriptions and lab reports.
+                        </div>
+                      </div>
+                      <Link
+                        href="/my-reports"
+                        className="button button--secondary"
+                        style={{ fontSize: "0.85rem", padding: "0.4rem 0.9rem" }}
+                      >
+                        Upload & Summarize →
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-state__icon">📄</div>
+                    <div className="empty-state__title">Setting up your health profile</div>
+                    <p className="empty-state__desc">
+                      Your personal record is ready to receive documents.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : !patients || patients.length === 0 ? (
               <div className="empty-state">

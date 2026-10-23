@@ -210,6 +210,24 @@ export async function fetchEntryById(
   );
 }
 
+export async function fetchMyPatient(): Promise<PatientDetail | null> {
+  return fetchJson<PatientDetail>("/api/v1/me/patient");
+}
+
+export async function fetchMyReports(): Promise<RecordEntrySummary[] | null> {
+  return fetchJson<RecordEntrySummary[]>("/api/v1/me/reports");
+}
+
+export async function postMyReport(
+  payload: Record<string, unknown>
+): Promise<RecordEntryDetail | null> {
+  return fetchJson<RecordEntryDetail>("/api/v1/me/reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchPatientQr(id: string): Promise<QrPayload | null> {
   return fetchJson<QrPayload>(`/api/v1/patients/${id}/qr`);
 }
