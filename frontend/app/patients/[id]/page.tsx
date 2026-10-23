@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   downloadPatientPdf,
@@ -14,21 +14,27 @@ import type { PatientDetail, QrPayload, RecordEntrySummary } from "@/lib/contrac
 export default function PatientPage({
   params,
 }: {
-  params: { id: string };
+  params: { id: string } | Promise<{ id: string }>;
 }) {
-  const { isAuthenticated } = useAuth();
+  const resolvedParams =
+    typeof (params as any)?.then === "function"
+      ? use(params as Promise<{ id: string }>)
+      : (params as { id: string });
+  const id = resolvedParams.id;
+
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [entries, setEntries] = useState<RecordEntrySummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
 
-  const { id } = params;
-
-  // Load patient data on mount - hooks must be called before any early returns
+  // Load patient data on mount
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (authLoading || !isAuthenticated || !id) return;
     let cancelled = false;
 
+    setLoading(true);
     Promise.all([
       fetchPatientRecord(id).then((r) => {
         if (!cancelled) {
@@ -48,19 +54,52 @@ export default function PatientPage({
     });
 
     return () => { cancelled = true; };
-  }, [id, isAuthenticated]);
+  }, [id, isAuthenticated, authLoading]);
 
-  // Require authentication
+  if (authLoading || loading) {
+    return (
+      <div className="page">
+        <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
+          <p style={{ color: "var(--ink-soft)" }}>Loading patient record…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div className="page">
+        <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
+          <h2 style={{ marginBottom: "0.5rem" }}>Sign in required</h2>
+          <p style={{ color: "var(--ink-soft)", marginBottom: "1.5rem" }}>
+            Please sign in to view this patient&#39;s clinical record.
+          </p>
+          <Link href="/login" className="button button--primary">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (error || !patient) {
-    notFound();
+    return (
+      <div className="page">
+        <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
+          <h2 style={{ marginBottom: "0.5rem" }}>Patient record unavailable</h2>
+          <p style={{ color: "var(--ink-soft)", marginBottom: "1.5rem" }}>
+            {error || "The requested patient record could not be found or you do not have permission to view it."}
+          </p>
+          <Link href="/" className="button button--secondary">
+            ← Return to dashboard
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const allergies = patient.allergies;
-  const activeConditions = patient.conditions;
+  const allergies = patient.allergies ?? [];
+  const activeConditions = patient.conditions ?? [];
 
   return (
     <div className="page">
@@ -176,7 +215,7 @@ export default function PatientPage({
               )}
             </div>
 
-            {entries && entries.length === 0 ? (
+            {!entries || entries.length === 0 ? (
               <div className="empty-state" style={{ padding: "2rem 1rem" }}>
                 <div className="empty-state__icon">📋</div>
                 <div className="empty-state__title">No clinical entries yet</div>

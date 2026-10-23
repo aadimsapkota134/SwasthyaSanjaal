@@ -44,6 +44,7 @@ const mockPatient: PatientSummary = {
 
 const mockHealth = {
   status: "ok",
+  service: "swasthyasanjaal-api",
   model_backend: "cloud",
   model: "gemma4:31b-cloud",
   services: [
@@ -53,10 +54,19 @@ const mockHealth = {
   ],
 };
 
+const mockUser = {
+  user_id: "user1",
+  email: "admin@test.com",
+  role: "administrator",
+  full_name: "Admin User",
+  is_active: true,
+  created_at: "2026-10-23T00:00:00Z",
+};
+
 describe("DashboardPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseRouter.mockReturnValue({ push: mockRouterPush } as ReturnType<typeof useRouter>);
+    mockUseRouter.mockReturnValue({ push: mockRouterPush } as unknown as ReturnType<typeof useRouter>);
     mockFetchHealth.mockResolvedValue(mockHealth);
     mockFetchPatients.mockResolvedValue([mockPatient]);
   });
@@ -95,7 +105,7 @@ describe("DashboardPage", () => {
 
   it("renders patient cards when patients are loaded", async () => {
     mockUseAuth.mockReturnValue({
-      user: { user_id: "user1", email: "admin@test.com", role: "administrator" },
+      user: mockUser,
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
@@ -115,7 +125,7 @@ describe("DashboardPage", () => {
 
   it("renders empty state when no patients are assigned", async () => {
     mockUseAuth.mockReturnValue({
-      user: { user_id: "user1", email: "admin@test.com", role: "clinician" },
+      user: { ...mockUser, role: "clinician" },
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
@@ -135,7 +145,7 @@ describe("DashboardPage", () => {
 
   it("renders error state when patients fetch returns null", async () => {
     mockUseAuth.mockReturnValue({
-      user: { user_id: "user1", email: "admin@test.com", role: "clinician" },
+      user: { ...mockUser, role: "clinician" },
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
@@ -155,7 +165,7 @@ describe("DashboardPage", () => {
 
   it("renders error state when API throws", async () => {
     mockUseAuth.mockReturnValue({
-      user: { user_id: "user1", email: "admin@test.com", role: "clinician" },
+      user: { ...mockUser, role: "clinician" },
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),

@@ -21,7 +21,7 @@ function mockResponse(data: unknown, status = 200): Response {
     ok: status >= 200 && status < 300,
     status,
     json: jest.fn().mockResolvedValue(data),
-  } as Response;
+  } as unknown as Response;
 }
 
 describe("fetchPatients", () => {
