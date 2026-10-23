@@ -127,6 +127,28 @@ body {
   border-color: #a7f3d0;
 }
 
+.nav-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(15, 107, 84, 0.2);
+  transition: all 0.15s ease;
+}
+
+.nav-btn-primary:hover {
+  background: var(--brand-hover);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 107, 84, 0.3);
+}
+
 .main {
   flex: 1;
   max-width: 1200px;
