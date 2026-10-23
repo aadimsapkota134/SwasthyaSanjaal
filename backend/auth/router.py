@@ -235,9 +235,14 @@ def logout(
     request: Request,
     current_user: dict[str, Any] = Depends(require_auth),
 ):
-    """Revoke the current session and clear the session cookie."""
+    """Revoke the current session and clear the session cookie.
+
+    Always clears the session cookie on the client side, even if the server-side
+    session no longer exists (e.g. already expired or revoked). This ensures the
+    client cannot reuse a stale cookie.
+    """
+    token = request.cookies.get(settings.session_cookie_name)
     with db_session() as con:
-        token = request.cookies.get(settings.session_cookie_name)
         if token:
             revoke_session(con, token)
             audit(
@@ -254,6 +259,12 @@ def logout(
     response.delete_cookie(
         key=settings.session_cookie_name,
         path=settings.session_cookie_path,
+        domain=settings.session_cookie_domain,
+    )
+    # Also clear the CSRF cookie on logout
+    response.delete_cookie(
+        key="csrf_token",
+        path="/",
         domain=settings.session_cookie_domain,
     )
     return response
