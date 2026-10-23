@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
+from backend.auth.audit import audit
 from backend.auth.router import require_admin, require_auth
 from backend.auth.session import validate_session
 from backend.db import session as db_session
@@ -396,6 +397,21 @@ def commit_entry(
         record.insert_entry(con, row_data)
         created_row = record.get_entry(con, entry_id)
         assert created_row is not None
+
+        audit(
+            con,
+            action="record_commit",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="record_entry",
+            resource_id=entry_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Committed entry {entry_id} for patient {patient_id}",
+            ip_address=None,
+            user_agent=None,
+        )
+
         return _to_detail(created_row, lexicon)
 
 
@@ -503,7 +519,22 @@ def get_patient_fhir(
         allergies = record.list_allergies(con, patient_id)
         raw_entries = record.list_entries(con, patient_id)
         entries = [(row, record.hydrate(row["normalized_json"], lexicon)) for row in raw_entries]
-        return build_bundle(patient, allergies, entries)
+        bundle = build_bundle(patient, allergies, entries)
+
+        audit(
+            con,
+            action="fhir_export",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="fhir_bundle",
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"FHIR R4 export for patient {patient_id} ({len(bundle.entry)} entries)",
+            ip_address=None,
+            user_agent=None,
+        )
+
+        return bundle
 
 
 @router.get("/patients/{patient_id}/summary.pdf")
@@ -520,6 +551,20 @@ def get_patient_summary_pdf(
         if not patient:
             raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
         pdf_bytes = generate_doctor_summary_pdf(patient, con, lexicon)
+
+        audit(
+            con,
+            action="pdf_export",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="doctor_summary_pdf",
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Doctor summary PDF for patient {patient_id}",
+            ip_address=None,
+            user_agent=None,
+        )
+
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -599,6 +644,21 @@ def get_emergency_by_token(token: str) -> dict[str, Any]:
             f"{len(detail.conditions)} active conditions",
             f"Region: {row['district'] or 'Nepal'}",
         ]
+
+        audit(
+            con,
+            action="emergency_token_access",
+            actor_id=None,
+            actor_email=None,
+            resource="patient",
+            resource_id=row["id"],
+            patient_id=row["id"],
+            outcome="success",
+            detail=f"Emergency QR token access for patient {row['id']}",
+            ip_address=None,
+            user_agent=None,
+        )
+
         return {
             "patient": {
                 "id": detail.id,
