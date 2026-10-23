@@ -131,7 +131,9 @@ export default function DashboardPage() {
                   }}
                 >
                   स्वास्थ्य सञ्जाल
-                  <span className="tag tag--committed">Synthetic demo data</span>
+                  {isAuthenticated && (
+                    <span className="tag tag--committed">Synthetic demo data</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -438,18 +440,20 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div
-            style={{
-              marginTop: "2rem",
-              paddingTop: "1rem",
-              borderTop: "1px solid var(--line)",
-            }}
-          >
-            <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", margin: 0 }}>
-              ⚠️ This is a demonstration system using synthetic patient data. No real patient
-              information is stored. Self-registration is enabled for individuals and clinicians.
-            </p>
-          </div>
+          {isAuthenticated && (
+            <div
+              style={{
+                marginTop: "2rem",
+                paddingTop: "1rem",
+                borderTop: "1px solid var(--line)",
+              }}
+            >
+              <p style={{ fontSize: "0.85rem", color: "var(--ink-soft)", margin: 0 }}>
+                ⚠️ This is a demonstration system using synthetic patient data. No real patient
+                information is stored. Self-registration is enabled for individuals and clinicians.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </div>
