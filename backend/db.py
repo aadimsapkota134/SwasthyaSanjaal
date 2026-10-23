@@ -91,6 +91,62 @@ CREATE TABLE IF NOT EXISTS eval_results (
   gold       TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id                TEXT PRIMARY KEY,
+  email             TEXT UNIQUE NOT NULL,
+  password_hash     TEXT NOT NULL,
+  full_name         TEXT,
+  role              TEXT NOT NULL DEFAULT 'clinician',
+  is_active         INTEGER NOT NULL DEFAULT 1,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  token_hash        TEXT UNIQUE NOT NULL,
+  expires_at        TIMESTAMP NOT NULL,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_used_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ip_address        TEXT,
+  user_agent        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS patient_access (
+  id                TEXT PRIMARY KEY,
+  user_id           TEXT NOT NULL REFERENCES users(id),
+  patient_id        TEXT NOT NULL REFERENCES patients(id),
+  granted_by        TEXT REFERENCES users(id),
+  granted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  revoked_at        TIMESTAMP,
+  UNIQUE(user_id, patient_id)
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id                TEXT PRIMARY KEY,
+  actor_id          TEXT REFERENCES users(id),
+  actor_email       TEXT,
+  action            TEXT NOT NULL,
+  resource          TEXT,
+  resource_id       TEXT,
+  patient_id        TEXT,
+  outcome           TEXT NOT NULL,
+  detail            TEXT,
+  ip_address        TEXT,
+  user_agent        TEXT,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_patient_access_user_id ON patient_access(user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_access_patient_id ON patient_access(patient_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor_id ON audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_patient_id ON audit_log(patient_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 """
 
 TABLES = (
@@ -99,6 +155,10 @@ TABLES = (
     "record_entries",
     "lexicon_entries",
     "eval_results",
+    "users",
+    "sessions",
+    "patient_access",
+    "audit_log",
 )
 
 
