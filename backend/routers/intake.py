@@ -5,7 +5,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from backend.intake.documents import (
@@ -24,7 +24,7 @@ from backend.intake.pipeline import (
     run_speech_intake,
 )
 from backend.auth.router import require_auth
-from backend.db import session as db_session
+from backend.db import get_db, session as db_session
 from backend.nlp.lexicon import get_lexicon
 from backend.nlp.normalize import normalize
 from backend.schemas import (

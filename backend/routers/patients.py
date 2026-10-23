@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from backend.auth.audit import audit
 from backend.auth.router import require_admin, require_auth
 from backend.auth.session import validate_session
-from backend.db import session as db_session
+from backend.db import get_db, session as db_session
 from backend.nlp.lexicon import Lexicon, get_lexicon
 from backend.record import entries as record
 from backend.record import qr
@@ -223,7 +223,7 @@ def _build_patient_detail(patient: sqlite3.Row, con: sqlite3.Connection, lexicon
 @router.get("/patients", response_model=list[PatientSummary])
 def list_patients(
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     with con:
         if current_user.get("role") == "administrator":
@@ -270,7 +270,7 @@ def list_patients(
 def get_patient(
     patient_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> PatientDetail:
     check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
@@ -287,7 +287,7 @@ def get_patient_record(
     document_class: str | None = Query(default=None),
     query: str | None = Query(default=None),
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> RecordResponse:
     check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
@@ -308,7 +308,7 @@ def get_entry(
     patient_id: str,
     entry_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> RecordEntryDetail:
     check_patient_access(con, current_user, patient_id)
     lexicon = get_lexicon()
@@ -324,7 +324,7 @@ def commit_entry(
     patient_id: str,
     payload: CommitEntryRequest,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> RecordEntryDetail:
     """Human-Confirmation Gate: the only endpoint that mutates patient health records."""
     check_patient_access(con, current_user, patient_id)
@@ -420,7 +420,7 @@ def get_patient_qr(
     patient_id: str,
     format: str | None = Query(default=None),
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> Any:
     """Generate high-contrast Segno emergency QR payload and scannable code."""
     check_patient_access(con, current_user, patient_id)
@@ -441,7 +441,7 @@ def get_patient_qr(
 def get_patient_qr_image(
     patient_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> Response:
     """Return scannable QR code PNG image bytes directly."""
     check_patient_access(con, current_user, patient_id)
@@ -507,7 +507,7 @@ async def decode_qr_image(file: UploadFile = File(...)) -> dict[str, Any]:
 def get_patient_fhir(
     patient_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> FhirBundle:
     """Generate HL7 FHIR R4 Collection Bundle strictly excluding negated findings."""
     check_patient_access(con, current_user, patient_id)
@@ -541,7 +541,7 @@ def get_patient_fhir(
 def get_patient_summary_pdf(
     patient_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> Response:
     """Generate high-contrast A4 Doctor Summary PDF using ReportLab."""
     check_patient_access(con, current_user, patient_id)
@@ -576,7 +576,7 @@ def get_patient_summary_pdf(
 def get_patient_entries(
     patient_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> list[RecordEntrySummary]:
     """List timeline entries for a specific patient."""
     check_patient_access(con, current_user, patient_id)
@@ -593,7 +593,7 @@ def get_patient_entries(
 def get_entry_by_id(
     entry_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> RecordEntryDetail:
     """Retrieve entry detail directly by entry ID."""
     lexicon = get_lexicon()
@@ -609,7 +609,7 @@ def get_entry_by_id(
 def commit_entry_by_id(
     entry_id: str,
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     """Confirmation Gate: commit an existing draft entry."""
     lexicon = get_lexicon()
@@ -679,7 +679,7 @@ def get_emergency_by_token(token: str) -> dict[str, Any]:
 @router.get("/dashboard")
 def get_dashboard_summary(
     current_user: dict = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     """Aggregate dashboard summary for the authenticated user's assigned patients."""
     lexicon = get_lexicon()

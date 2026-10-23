@@ -35,7 +35,7 @@ from backend.auth.session import (
     validate_session,
 )
 from backend.config import settings
-from backend.db import session as db_session
+from backend.db import get_db
 
 router = APIRouter(tags=["auth"])
 
@@ -159,7 +159,7 @@ async def require_patient_access(
     patient_id: str,
     request: Request,
     current_user: dict[str, Any] = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ) -> dict[str, Any]:
     """Require that the authenticated user has access to the given patient.
 
@@ -197,7 +197,7 @@ def patient_access_required(patient_id_param: str = "patient_id"):
     async def _check(
         request: Request,
         current_user: dict[str, Any] = Depends(require_auth),
-        con: sqlite3.Connection = Depends(lambda: db_session()),
+        con: sqlite3.Connection = Depends(get_db),
         **kwargs,
     ) -> dict[str, Any]:
         pid = kwargs.get(patient_id_param)
@@ -234,7 +234,7 @@ def patient_access_required(patient_id_param: str = "patient_id"):
 def login(
     payload: LoginRequest,
     request: Request,
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Authenticate with email and password, creating a server-side session.
 
@@ -316,7 +316,7 @@ def login(
 def logout(
     request: Request,
     current_user: dict[str, Any] = Depends(require_auth),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Revoke the current session and clear the session cookie."""
     token = request.cookies.get(settings.session_cookie_name)
@@ -365,7 +365,7 @@ def get_current_user_profile(
 def create_user(
     payload: CreateUserRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Create a new user account (administrator only)."""
     import secrets as _secrets
@@ -427,7 +427,7 @@ def create_user(
 @router.get("/admin/users", response_model=list[UserResponse])
 def list_users(
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """List all user accounts (administrator only)."""
     rows = con.execute(
@@ -451,7 +451,7 @@ def update_user(
     user_id: str,
     payload: UpdateUserRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Update a user account: deactivate/reactivate, change role or name (admin only)."""
     row = con.execute("SELECT id, email, full_name, role, is_active FROM users WHERE id = :id", {"id": user_id}).fetchone()
@@ -517,7 +517,7 @@ def update_user(
 def grant_patient_access(
     payload: PatientAccessRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Grant a user access to a patient record (administrator only)."""
     import secrets as _secrets
@@ -588,7 +588,7 @@ def grant_patient_access(
 def revoke_patient_access(
     payload: PatientAccessRequest,
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """Revoke a user's access to a patient (administrator only)."""
     con.execute(
@@ -624,7 +624,7 @@ def revoke_patient_access(
 @router.get("/admin/patient-access", response_model=list[PatientAccessResponse])
 def list_patient_access(
     current_user: dict[str, Any] = Depends(require_admin),
-    con: sqlite3.Connection = Depends(lambda: db_session()),
+    con: sqlite3.Connection = Depends(get_db),
 ):
     """List all patient access grants (administrator only)."""
     rows = con.execute(

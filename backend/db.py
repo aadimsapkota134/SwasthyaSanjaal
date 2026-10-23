@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.config import settings
@@ -210,3 +211,10 @@ def init_db(db_path: str | None = None) -> list[str]:
     with session(db_path) as con:
         con.executescript(SCHEMA)
         return apply_additive_migrations(con)
+
+
+@contextmanager
+def get_db(db_path: str | None = None) -> Iterator[sqlite3.Connection]:
+    """FastAPI-compatible dependency that yields a database connection."""
+    with session(db_path) as con:
+        yield con
