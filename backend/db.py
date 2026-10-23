@@ -207,10 +207,62 @@ def apply_additive_migrations(con: sqlite3.Connection) -> list[str]:
     return applied
 
 
+def _migrate_individual_patients(con: sqlite3.Connection) -> None:
+    """Ensure any individual account has a dedicated patient profile linked by name."""
+    import secrets
+
+    individuals = con.execute("SELECT * FROM users WHERE role = 'individual'").fetchall()
+    for u in individuals:
+        own = con.execute(
+            """
+            SELECT pa.id FROM patient_access pa
+            WHERE pa.user_id = :user_id AND pa.granted_by = :user_id AND pa.revoked_at IS NULL
+            """,
+            {"user_id": u["id"]},
+        ).fetchone()
+        if not own:
+            pat_id = f"pat_{secrets.token_urlsafe(12)}"
+            name = u["full_name"] or u["email"].split("@")[0].capitalize()
+            sanjaal_id = f"SANJAAL-{secrets.token_hex(4).upper()}"
+            sanchai_id = f"SANCHAI-{secrets.token_hex(4).upper()}"
+            qr_token = secrets.token_urlsafe(16)
+            con.execute(
+                """
+                INSERT INTO patients (id, name, sanjaal_id, sanchai_id, qr_token, lang_pref)
+                VALUES (:id, :name, :sanjaal_id, :sanchai_id, :qr_token, 'ne')
+                """,
+                {
+                    "id": pat_id,
+                    "name": name,
+                    "sanjaal_id": sanjaal_id,
+                    "sanchai_id": sanchai_id,
+                    "qr_token": qr_token,
+                },
+            )
+            # Remove old blanket demo grants for this individual
+            con.execute("DELETE FROM patient_access WHERE user_id = :user_id", {"user_id": u["id"]})
+            # Link to their newly created patient profile
+            access_id = secrets.token_urlsafe(16)
+            con.execute(
+                """
+                INSERT INTO patient_access (id, user_id, patient_id, granted_by, granted_at)
+                VALUES (:id, :user_id, :patient_id, :user_id, datetime('now'))
+                """,
+                {
+                    "id": access_id,
+                    "user_id": u["id"],
+                    "patient_id": pat_id,
+                },
+            )
+
+
 def init_db(db_path: str | None = None) -> list[str]:
     with session(db_path) as con:
         con.executescript(SCHEMA)
-        return apply_additive_migrations(con)
+        migrated = apply_additive_migrations(con)
+        _migrate_individual_patients(con)
+        return migrated
+
 
 
 @contextmanager
