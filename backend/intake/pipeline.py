@@ -38,6 +38,7 @@ STAGE_DONE = "done"
 
 METHOD_DIRECT = "direct"
 METHOD_PYMUPDF = "pymupdf"
+METHOD_TESSERACT = "tesseract"
 METHOD_GEMMA4_VLM = "gemma4_vlm"
 METHOD_GEMMA4_AUDIO = "gemma4_audio"
 METHOD_ASR_TRANSCRIPT = "asr_transcript"
@@ -290,24 +291,42 @@ def run_intake(
                         )
                     )
                 else:
-                    extracted = ai_engine.transcribe_image(image_bytes) if use_model else None
-                    if extracted:
-                        raw_transcript = extracted
-                        extraction_method = METHOD_GEMMA4_VLM
+                    # 1. Try local Tesseract OCR engine
+                    from backend.ocr.router import OcrRouter
+
+                    ocr_router = OcrRouter()
+                    tess_result = ocr_router.extract_image(image_bytes)
+                    if tess_result and tess_result.text.strip():
+                        raw_transcript = tess_result.text.strip()
+                        extraction_method = METHOD_TESSERACT
                         extraction_status = STATUS_OK
                     else:
-                        extraction_method = METHOD_UNAVAILABLE
-                        extraction_status = STATUS_ENGINE_UNAVAILABLE
-                        notes.append(
-                            Note(
-                                level="warning",
-                                message_np="स्क्यान गरिएको पीडीएफ पढ्न AI भिजन उपलब्ध भएन।",
-                                message_en="AI vision model unavailable to read scanned PDF.",
+                        extracted = ai_engine.transcribe_image(image_bytes) if use_model else None
+                        if extracted:
+                            raw_transcript = extracted
+                            extraction_method = METHOD_GEMMA4_VLM
+                            extraction_status = STATUS_OK
+                        else:
+                            extraction_method = METHOD_UNAVAILABLE
+                            extraction_status = STATUS_ENGINE_UNAVAILABLE
+                            notes.append(
+                                Note(
+                                    level="warning",
+                                    message_np="स्क्यान गरिएको पीडीएफ पढ्न OCR वा AI भिजन उपलब्ध भएन।",
+                                    message_en="OCR or AI vision model unavailable to read scanned PDF.",
+                                )
                             )
-                        )
 
     elif input_type == INPUT_IMAGE and upload is not None:
-        if use_model:
+        from backend.ocr.router import OcrRouter
+
+        ocr_router = OcrRouter()
+        tess_result = ocr_router.extract_image(upload.data)
+        if tess_result and tess_result.text.strip():
+            raw_transcript = tess_result.text.strip()
+            extraction_method = METHOD_TESSERACT
+            extraction_status = STATUS_OK
+        elif use_model:
             extracted = ai_engine.transcribe_image(upload.data)
             if extracted:
                 raw_transcript = extracted
@@ -319,13 +338,20 @@ def run_intake(
                 notes.append(
                     Note(
                         level="warning",
-                        message_np="तस्बिरबाट पाठ निकाल्न AI मोडल उपलब्ध भएन। कृपया सिधै पाठ प्रविष्ट गर्नुहोस्।",
-                        message_en="Vision model unavailable for image OCR. Please enter clinical text directly.",
+                        message_np="तस्बिरबाट पाठ निकाल्न OCR वा AI मोडल उपलब्ध भएन। कृपया सिधै पाठ प्रविष्ट गर्नुहोस्।",
+                        message_en="Local OCR and vision model unavailable for image OCR. Please enter clinical text directly.",
                     )
                 )
         else:
             extraction_method = METHOD_UNAVAILABLE
             extraction_status = STATUS_ENGINE_UNAVAILABLE
+            notes.append(
+                Note(
+                    level="warning",
+                    message_np="तस्बिरबाट पाठ निकाल्न OCR वा AI मोडल उपलब्ध भएन।",
+                    message_en="Local OCR and vision model unavailable for image OCR.",
+                )
+            )
 
     # Check for unreadable markers [?] from Document Understanding
     if "[?]" in raw_transcript:
