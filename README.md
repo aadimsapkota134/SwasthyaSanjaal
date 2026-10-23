@@ -136,7 +136,7 @@ The lexicon acts as a boundary for the AI system: models can select an approved 
 
 ---
 
-### 2. Multi-stage Concept Matching
+### 2.  Multi-stage Concept Matching
 
 Incoming clinical language is resolved using three stages.
 
