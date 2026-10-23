@@ -96,11 +96,26 @@ export default function MyReportsPage() {
   };
 
   const handleSaveToRecord = async () => {
-    if (!intakeResult || !intakeResult.normalized) return;
+    if (!intakeResult) return;
     setIsProcessing(true);
     setError(null);
 
     const todayIso = new Date().toISOString().split("T")[0];
+    const normalized = intakeResult.normalized ?? {
+      text: intakeResult.raw_transcript,
+      prepared_text: intakeResult.corrected_text || intakeResult.raw_transcript,
+      concepts: [],
+      modifiers: [],
+      duration_days: null,
+      frequency_per_day: null,
+      severity: null,
+      requires_confirmation: false,
+      confirmation_required: false,
+      field_uncertainty: {},
+      unmatched: [],
+      tier_counts: {},
+    };
+
     const payload = {
       input_type: intakeResult.input_type || "text",
       document_class: intakeResult.document_class || documentClass,
@@ -110,21 +125,26 @@ export default function MyReportsPage() {
       corrected_text: intakeResult.corrected_text,
       extraction_method: intakeResult.extraction_method,
       asset_path: intakeResult.asset_path,
-      meaning_np: intakeResult.normalized.prepared_text || intakeResult.corrected_text,
-      normalized: intakeResult.normalized,
+      meaning_np: normalized.prepared_text || intakeResult.corrected_text,
+      normalized,
       notes: intakeResult.notes || [],
     };
 
-    const saved = await postMyReport(payload);
-    setIsProcessing(false);
-    if (saved) {
-      setSaveSuccess("Report successfully saved to your personal medical ledger!");
-      setIntakeResult(null);
-      setFile(null);
-      setTextInput("");
-      loadData();
-    } else {
-      setError("Unable to save report. Please check server connection.");
+    try {
+      const saved = await postMyReport(payload);
+      setIsProcessing(false);
+      if (saved) {
+        setSaveSuccess("Report successfully saved to your personal medical ledger!");
+        setIntakeResult(null);
+        setFile(null);
+        setTextInput("");
+        loadData();
+      } else {
+        setError("Unable to save report. Please ensure you are signed into an Individual account and try again.");
+      }
+    } catch (err) {
+      setIsProcessing(false);
+      setError(err instanceof Error ? err.message : "Unable to save report. Please check server connection.");
     }
   };
 
