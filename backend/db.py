@@ -214,7 +214,7 @@ def init_db(db_path: str | None = None) -> list[str]:
 
 
 @contextmanager
-def get_db(db_path: str | None = None) -> Iterator[sqlite3.Connection]:
+def get_db() -> Iterator[sqlite3.Connection]:
     """FastAPI-compatible dependency that yields a database connection."""
-    with session(db_path) as con:
+    with session() as con:
         yield con
