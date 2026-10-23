@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import getpass
 import hashlib
 import json
+import secrets
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from backend.auth.password import hash_password
 from backend.config import settings
+from backend.db import session as db_session
 
 SEED_PATIENTS_PATH = "./data/seed_patients.json"
 SEED_ENTRIES_PATH = "./data/seed_entries.json"
@@ -173,9 +178,86 @@ def seed_all(con: sqlite3.Connection) -> dict[str, int]:
     }
 
 
-if __name__ == "__main__":
-    from backend.db import init_db, session
+def bootstrap_admin(con: sqlite3.Connection, email: str, password: str, full_name: str | None = None) -> dict[str, Any]:
+    """Bootstrap the first administrator account.
 
-    init_db()
-    with session() as connection:
-        print(json.dumps(seed_all(connection), indent=2))
+    Refuses to overwrite an existing administrator. Prompts for credentials
+    securely (no echo). Never logs or prints the password.
+    """
+    # Check if any administrator already exists
+    existing_admin = con.execute(
+        "SELECT id FROM users WHERE role = 'administrator' LIMIT 1"
+    ).fetchone()
+    if existing_admin is not None:
+        raise ValueError("An administrator account already exists")
+
+    # Check if any user with this email already exists
+    existing = con.execute(
+        "SELECT id FROM users WHERE email = :email", {"email": email}
+    ).fetchone()
+    if existing is not None:
+        raise ValueError("An account with this email already exists")
+
+    # Validate password strength
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+
+    user_id = secrets.token_urlsafe(16)
+    password_hash_val = hash_password(password)
+    now = datetime.now(timezone.utc).isoformat()
+
+    con.execute(
+        """
+        INSERT INTO users (id, email, password_hash, full_name, role, is_active, created_at, updated_at)
+        VALUES (:id, :email, :password_hash, :full_name, 'administrator', 1, :created_at, :updated_at)
+        """,
+        {
+            "id": user_id,
+            "email": email,
+            "password_hash": password_hash_val,
+            "full_name": full_name,
+            "created_at": now,
+            "updated_at": now,
+        },
+    )
+    con.commit()
+
+    return {
+        "user_id": user_id,
+        "email": email,
+        "full_name": full_name,
+        "role": "administrator",
+        "created_at": now,
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    from datetime import datetime, timezone
+
+    from backend.db import init_db
+
+    if len(sys.argv) > 1 and sys.argv[1] == "bootstrap-admin":
+        init_db()
+        email = input("Admin email: ").strip()
+        if not email:
+            print("Email is required", file=sys.stderr)
+            sys.exit(1)
+        password = getpass.getpass("Admin password: ")
+        password_confirm = getpass.getpass("Confirm password: ")
+        if password != password_confirm:
+            print("Passwords do not match", file=sys.stderr)
+            sys.exit(1)
+        full_name = input("Full name (optional): ").strip() or None
+
+        try:
+            with db_session() as connection:
+                result = bootstrap_admin(connection, email, password, full_name)
+            print(f"Administrator created: {result['email']} ({result['user_id']})")
+        except ValueError as exc:
+            print(f"Bootstrap failed: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        init_db()
+        with db_session() as connection:
+            print(json.dumps(seed_all(connection), indent=2))
