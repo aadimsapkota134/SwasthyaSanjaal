@@ -1,61 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchHealth, fetchPatients } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { PatientSummary } from "@/lib/contracts";
 
+type HealthService = { service: string; status: string; detail?: string };
+
 export default function DashboardPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [health, setHealth] = useState<{ status: string; model_backend: string; model: string; services?: any[] } | null>(null);
+  const [health, setHealth] = useState<{ status: string; model_backend: string; model: string; services?: HealthService[] } | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientSummary[] | null>(null);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setPatientsError(null);
-    setHealthError(null);
-
-    let cancelled = false;
-
-    await Promise.all([
-      fetchHealth().then((h) => {
-        if (!cancelled) setHealth(h);
-      }).catch((e) => {
-        if (!cancelled) setHealthError(e instanceof Error ? e.message : "Unable to reach backend");
-      }),
-      fetchPatients().then((p) => {
-        if (!cancelled) {
-          if (p === null) {
-            setPatientsError("Unable to load patients. Please log in again.");
-          } else {
-            setPatients(p);
-          }
-        }
-      }).catch((e) => {
-        if (!cancelled) setPatientsError(e instanceof Error ? e.message : "Unable to load patients");
-      }),
-    ]);
-
-    if (!cancelled) setLoading(false);
-
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login");
       return;
     }
-    if (!authLoading && isAuthenticated) {
-      loadData();
+    if (authLoading || !isAuthenticated) {
+      return;
     }
-  }, [isAuthenticated, authLoading, loadData, router]);
+
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true);
+    });
+
+    fetchHealth().then((h) => {
+      if (!cancelled) setHealth(h);
+    }).catch((e) => {
+      if (!cancelled) setHealthError(e instanceof Error ? e.message : "Unable to reach backend");
+    });
+    fetchPatients().then((p) => {
+      if (!cancelled) {
+        if (p === null) {
+          setPatientsError("Unable to load patients. Please log in again.");
+        } else {
+          setPatients(p);
+        }
+      }
+    }).catch((e) => {
+      if (!cancelled) setPatientsError(e instanceof Error ? e.message : "Unable to load patients");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [isAuthenticated, authLoading, router]);
 
   if (authLoading || loading) {
     return (
