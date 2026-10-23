@@ -77,6 +77,7 @@ describe("DashboardPage", () => {
       isAuthenticated: false,
       isLoading: true,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });
@@ -91,6 +92,7 @@ describe("DashboardPage", () => {
       isAuthenticated: false,
       isLoading: false,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });
@@ -109,6 +111,7 @@ describe("DashboardPage", () => {
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });
@@ -129,6 +132,7 @@ describe("DashboardPage", () => {
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });
@@ -149,6 +153,7 @@ describe("DashboardPage", () => {
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });
@@ -169,6 +174,7 @@ describe("DashboardPage", () => {
       isAuthenticated: true,
       isLoading: false,
       login: jest.fn(),
+      signup: jest.fn(),
       logout: jest.fn(),
       refreshUser: jest.fn(),
     });

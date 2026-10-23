@@ -3,7 +3,7 @@
 import React, {
   createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode,
 } from "react";
-import { login, logout, getCurrentUser } from "@/lib/api";
+import { login, logout, signup as signupApi, getCurrentUser } from "@/lib/api";
 import type { UserResponse } from "@/lib/contracts";
 
 const AuthContext = createContext<{
@@ -11,6 +11,12 @@ const AuthContext = createContext<{
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  signup: (
+    email: string,
+    password: string,
+    fullName?: string,
+    role?: "individual" | "clinician"
+  ) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 } | null>(null);
@@ -51,6 +57,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const doSignup = useCallback(
+    async (
+      email: string,
+      password: string,
+      fullName?: string,
+      role: "individual" | "clinician" = "individual"
+    ) => {
+      const result = await signupApi(email, password, fullName, role);
+      if (result) {
+        setUser(result.user);
+        return true;
+      }
+      setUser(null);
+      return false;
+    },
+    []
+  );
+
   const doLogout = useCallback(async () => {
     await logout();
     setUser(null);
@@ -61,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     isAuthenticated: !!user,
     login: doLogin,
+    signup: doSignup,
     logout: doLogout,
     refreshUser,
   };

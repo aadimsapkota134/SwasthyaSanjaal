@@ -85,19 +85,41 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 bg-[#0f6b54] hover:bg-[#0d5a48] text-white font-semibold rounded-lg disabled:opacity-60 transition-colors"
+              className="w-full py-3 px-4 bg-[#0f6b54] hover:bg-[#0d5a48] text-white font-semibold rounded-xl disabled:opacity-60 transition-colors shadow-sm text-sm"
             >
               {isLoading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
-          <div className="mt-8 pt-4 border-t border-[#e2e8f0] text-center">
-            <p className="text-sm text-[#475569] mb-3">
-              Don&#39;t have an account? Contact your clinic administrator to create one.
+          {/* Quick Demo Access */}
+          <div className="mt-6 pt-5 border-t border-[#e2e8f0]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#64748b] text-center mb-2.5">
+              Testing or Evaluation?
             </p>
-            <Link href="/" className="text-sm text-[#0f6b54] hover:underline">
-              ← Return to dashboard
-            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("admin@swasthya.example");
+                setPassword("AdminPass123!");
+              }}
+              className="w-full py-2.5 px-3 bg-[#f8fafc] hover:bg-[#f1f5f9] text-[#0f6b54] border border-[#cbd5e1] font-medium rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
+            >
+              <span>⚡</span> Autofill Seed Demo Administrator
+            </button>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-[#e2e8f0] text-center space-y-2.5">
+            <p className="text-sm text-[#475569]">
+              Don&#39;t have an account?{" "}
+              <Link href="/signup" className="text-[#0f6b54] font-semibold hover:underline">
+                Create an account (Sign up)
+              </Link>
+            </p>
+            <div>
+              <Link href="/" className="text-xs text-[#64748b] hover:text-[#0f172a]">
+                ← Return to dashboard overview
+              </Link>
+            </div>
           </div>
         </div>
       </div>
