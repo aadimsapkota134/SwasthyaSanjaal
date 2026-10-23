@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from backend.config import settings
 from backend.db import TABLES, init_db, session
+from backend.routers import auth as auth_router
 from backend.routers import eval as eval_router
 from backend.routers import intake as intake_router
 from backend.routers import patients as patients_router
@@ -139,3 +140,4 @@ app.include_router(api)
 app.include_router(intake_router.router, prefix="/api/v1")
 app.include_router(patients_router.router, prefix="/api/v1")
 app.include_router(eval_router.router, prefix="/api/v1")
+app.include_router(auth_router.router, prefix="/api/v1")
