@@ -93,7 +93,7 @@ export default function LoginPage() {
 
           <div className="mt-8 pt-4 border-t border-[#e2e8f0] text-center">
             <p className="text-sm text-[#475569] mb-3">
-              Don't have an account? Contact your clinic administrator to create one.
+              Don&#39;t have an account? Contact your clinic administrator to create one.
             </p>
             <Link href="/" className="text-sm text-[#0f6b54] hover:underline">
               ← Return to dashboard

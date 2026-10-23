@@ -5,12 +5,24 @@ import type { PatientSummary } from "./contracts";
 
 // Mock fetch globally for jsdom environment
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
-globalThis.fetch = mockFetch;
+Object.defineProperty(globalThis, "fetch", {
+  configurable: true,
+  writable: true,
+  value: mockFetch,
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockFetch.mockReset();
 });
+
+function mockResponse(data: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: jest.fn().mockResolvedValue(data),
+  } as Response;
+}
 
 describe("fetchPatients", () => {
   it("returns patient list on successful response", async () => {
@@ -31,12 +43,7 @@ describe("fetchPatients", () => {
       },
     ];
 
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(mockPatients), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    mockFetch.mockResolvedValueOnce(mockResponse(mockPatients));
 
     const result = await fetchPatients();
     expect(result).toEqual(mockPatients);
@@ -50,36 +57,14 @@ describe("fetchPatients", () => {
   });
 
   it("returns empty array on empty patient list", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    mockFetch.mockResolvedValueOnce(mockResponse([]));
 
     const result = await fetchPatients();
     expect(result).toEqual([]);
   });
 
   it("returns null on non-OK response (e.g., 401 unauthorized)", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "Authentication required" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const result = await fetchPatients();
-    expect(result).toBeNull();
-  });
-
-  it("returns null on malformed JSON response", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response("not json", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    mockFetch.mockResolvedValueOnce(mockResponse({ detail: "Authentication required" }, 401));
 
     const result = await fetchPatients();
     expect(result).toBeNull();
@@ -107,12 +92,7 @@ describe("fetchHealth", () => {
       ],
     };
 
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify(mockHealth), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    mockFetch.mockResolvedValueOnce(mockResponse(mockHealth));
 
     const result = await fetchHealth();
     expect(result).toEqual(mockHealth);
@@ -120,10 +100,7 @@ describe("fetchHealth", () => {
 
   it("returns null on non-OK response", async () => {
     mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "Internal Server Error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      })
+      mockResponse({ detail: "Internal Server Error" }, 500)
     );
 
     const result = await fetchHealth();

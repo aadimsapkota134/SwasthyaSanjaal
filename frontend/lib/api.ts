@@ -3,11 +3,8 @@
 import type {
   CreateUserRequest,
   EvalRunResponse,
-  FieldUncertainty,
   FhirBundle,
   IntakeResponse,
-  LoginRequest,
-  NormalizeResponse,
   PatientDetail,
   PatientSummary,
   QrPayload,

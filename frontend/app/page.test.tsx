@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
+import { useRouter } from "next/navigation";
 import { fetchPatients, fetchHealth } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import DashboardPage from "./page";
+import type { PatientSummary } from "@/lib/contracts";
 
 jest.mock("@/lib/api", () => ({
   fetchHealth: jest.fn(),
@@ -16,14 +18,16 @@ jest.mock("@/lib/auth-context", () => ({
 }));
 
 jest.mock("next/navigation", () => ({
-  useRouter: jest.fn(() => ({ push: jest.fn() })),
+  useRouter: jest.fn(),
 }));
 
 const mockFetchPatients = fetchPatients as jest.MockedFunction<typeof fetchPatients>;
 const mockFetchHealth = fetchHealth as jest.MockedFunction<typeof fetchHealth>;
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>;
+const mockRouterPush = jest.fn();
 
-const mockPatient: any = {
+const mockPatient: PatientSummary = {
   id: "patient_ram",
   name: "Ram Bahadur Shrestha",
   name_np: "राम बहादुर श्रेष्ठ",
@@ -38,7 +42,7 @@ const mockPatient: any = {
   entry_count: 4,
 };
 
-const mockHealth: any = {
+const mockHealth = {
   status: "ok",
   model_backend: "cloud",
   model: "gemma4:31b-cloud",
@@ -52,7 +56,7 @@ const mockHealth: any = {
 describe("DashboardPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Set default return values that persist across calls
+    mockUseRouter.mockReturnValue({ push: mockRouterPush } as ReturnType<typeof useRouter>);
     mockFetchHealth.mockResolvedValue(mockHealth);
     mockFetchPatients.mockResolvedValue([mockPatient]);
   });
@@ -68,7 +72,7 @@ describe("DashboardPage", () => {
     });
 
     render(<DashboardPage />);
-    expect(screen.getByText(/loading…/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading…/i)).toBeTruthy();
   });
 
   it("redirects to login when not authenticated", async () => {
@@ -81,9 +85,11 @@ describe("DashboardPage", () => {
       refreshUser: jest.fn(),
     });
 
+    mockRouterPush.mockReset();
+
     render(<DashboardPage />);
     await waitFor(() => {
-      expect(require("next/navigation").useRouter().push).toHaveBeenCalledWith("/login");
+      expect(mockRouterPush).toHaveBeenCalledWith("/login");
     });
   });
 
@@ -100,9 +106,11 @@ describe("DashboardPage", () => {
     await act(async () => {
       render(<DashboardPage />);
     });
-    expect(screen.getByText("Ram Bahadur Shrestha")).toBeInTheDocument();
-    expect(screen.getByText("राम बहादुर श्रेष्ठ")).toBeInTheDocument();
-    expect(screen.getByText("B+")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Ram Bahadur Shrestha/)).toBeTruthy();
+    });
+    expect(screen.getByText(/राम बहादुर श्रेष्ठ/)).toBeTruthy();
+    expect(screen.getByText(/B\+/)).toBeTruthy();
   });
 
   it("renders empty state when no patients are assigned", async () => {
@@ -120,7 +128,9 @@ describe("DashboardPage", () => {
     await act(async () => {
       render(<DashboardPage />);
     });
-    expect(screen.getByText(/no patients assigned/i)).toBeInTheDocument();
+    await waitFor(() => {
+      screen.getByText(/no patients assigned/i);
+    });
   });
 
   it("renders error state when patients fetch returns null", async () => {
@@ -139,7 +149,7 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
     const alert = screen.getByText(/Unable to load patients/);
-    expect(alert).toBeInTheDocument();
+    expect(alert).toBeTruthy();
     expect(alert.textContent).toContain("Unable to load patients");
   });
 
@@ -159,7 +169,7 @@ describe("DashboardPage", () => {
       render(<DashboardPage />);
     });
     const alert = screen.getByText(/Unable to load patients/);
-    expect(alert).toBeInTheDocument();
+    expect(alert).toBeTruthy();
     expect(alert.textContent).toContain("Unable to load patients");
   });
 });

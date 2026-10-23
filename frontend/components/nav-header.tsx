@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 
 export function NavHeader() {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();

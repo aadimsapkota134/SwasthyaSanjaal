@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   fetchPatients,
@@ -9,12 +9,17 @@ import {
   postIntakeText,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { FieldUncertainty, IntakeResponse, PatientSummary } from "@/lib/contracts";
+import type {
+  FieldUncertainty,
+  IntakeResponse,
+  NormalizedConcept,
+  PatientSummary,
+} from "@/lib/contracts";
 
 type Step = "input" | "results" | "review" | "success" | "error";
 
 export default function IntakePage() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [patients, setPatients] = useState<PatientSummary[] | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [step, setStep] = useState<Step>("input");
@@ -33,6 +38,15 @@ export default function IntakePage() {
   const [commitSuccess, setCommitSuccess] = useState<{ id: string; patientName: string } | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
 
+  // Load patients on mount - hooks must be called before any early returns
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    fetchPatients().then((p) => {
+      if (p) setPatients(p);
+      if (p && p.length > 0 && !selectedPatientId) setSelectedPatientId(p[0].id);
+    });
+  }, [isAuthenticated, isLoading, selectedPatientId]);
+
   // Require authentication
   if (!isAuthenticated) {
     return null;
@@ -47,14 +61,6 @@ export default function IntakePage() {
       </div>
     );
   }
-
-  // Load patients on mount
-  useEffect(() => {
-    fetchPatients().then((p) => {
-      if (p) setPatients(p);
-      if (p && p.length > 0 && !selectedPatientId) setSelectedPatientId(p[0].id);
-    });
-  }, []);
 
   const documentClasses: { value: "prescription" | "lab_report" | "bill" | "note"; label: string }[] = [
     { value: "prescription", label: "Prescription slip" },
@@ -418,7 +424,7 @@ export default function IntakePage() {
                   <article className="metric">
                     <span className="metric__label">Negated</span>
                     <div className="metric__value" style={{ color: "var(--danger)" }}>
-                      {intakeResult.normalized?.concepts.filter((c: any) => c.negated).length}
+                      {intakeResult.normalized?.concepts.filter((c: NormalizedConcept) => c.negated).length}
                     </div>
                   </article>
                 </div>
@@ -441,7 +447,7 @@ export default function IntakePage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     {intakeResult.corrections.map((c, i) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", padding: "0.4rem", background: "#f8fafc", borderRadius: "6px" }}>
-                        <span>"{c.original}" → "{c.replacement}"</span>
+                        <span>&quot;{c.original}&quot; &rarr; &quot;{c.replacement}&quot;</span>
                         <span className="tag tag--neutral" style={{ fontSize: "0.7rem" }}>{c.reason}</span>
                       </div>
                     ))}
@@ -456,7 +462,7 @@ export default function IntakePage() {
                   <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", margin: 0 }}>No clinical concepts recognized.</p>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {intakeResult.normalized?.concepts?.map((c: any, i: number) => (
+                    {intakeResult.normalized?.concepts?.map((c: NormalizedConcept, i: number) => (
                       <div key={`${c.concept_id}-${i}`} className="concept-chip">
                         <div>
                           <div className="concept-chip__name">{c.canonical_en}</div>
@@ -485,7 +491,7 @@ export default function IntakePage() {
                 <div className="card">
                   <div className="card__title">Modifiers (duration, frequency, severity)</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                    {intakeResult.normalized.modifiers.map((m: any, i: number) => (
+                    {intakeResult.normalized.modifiers.map((m: NormalizedConcept, i: number) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", padding: "0.4rem", background: "#f8fafc", borderRadius: "6px" }}>
                         <span>{m.canonical_np} ({m.canonical_en})</span>
                         <span className="tag tag--neutral" style={{ fontSize: "0.7rem" }}>{m.concept_type}</span>
@@ -624,9 +630,9 @@ export default function IntakePage() {
               </div>
               {intakeResult.normalized?.concepts && intakeResult.normalized.concepts.length > 0 && (
                 <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                  {intakeResult.normalized.concepts.map((c: any, i: number) => (
+                  {intakeResult.normalized.concepts.map((c: NormalizedConcept, i: number) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", padding: "0.35rem 0" }}>
-                      <span dangerouslySetInnerHTML={{ __html: `${c.canonical_en} (${c.canonical_np})${c.negated ? " — <span style='color: var(--danger)'><strong>NEGATED</strong></span>" : ""}` }} />
+                      <span dangerouslySetInnerHTML={{ __html: `${c.canonical_en} (${c.canonical_np})${c.negated ? " — <span style=&#39;color: var(--danger)&#39;><strong>NEGATED</strong></span>" : ""}` }} />
                       <span className={`tag tag--tier${c.tier}`} style={{ fontSize: "0.7rem" }}>Tier {c.tier}</span>
                     </div>
                   ))}
@@ -662,7 +668,7 @@ export default function IntakePage() {
             <div style={{ fontSize: "3rem", marginBottom: "1rem" }} aria-hidden="true">✓</div>
             <h1 className="title" style={{ marginBottom: "0.5rem" }}>Record committed</h1>
             <p style={{ color: "var(--ink-soft)", marginBottom: "1.5rem" }}>
-              The approved entry has been written to {commitSuccess.patientName}'s longitudinal record.
+              The approved entry has been written to {commitSuccess.patientName}&#39;s longitudinal record.
             </p>
             <div className="actions" style={{ justifyContent: "center" }}>
               <Link

@@ -1,6 +1,5 @@
 "use client";
 
-import { notFound } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -10,29 +9,25 @@ import {
   fetchPatientRecord,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { PatientDetail, RecordEntrySummary } from "@/lib/contracts";
+import type { PatientDetail, QrPayload, RecordEntrySummary } from "@/lib/contracts";
 
-export default async function PatientPage({
+export default function PatientPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [entries, setEntries] = useState<RecordEntrySummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [qrPayload, setQrPayload] = useState<any>(null);
+  const [qrPayload, setQrPayload] = useState<QrPayload | null>(null);
 
-  // Require authentication
-  if (!isAuthenticated) {
-    return null;
-  }
+  const { id } = params;
 
+  // Load patient data on mount - hooks must be called before any early returns
   useEffect(() => {
+    if (!isAuthenticated) return;
     let cancelled = false;
-    setLoading(true);
 
     Promise.all([
       fetchPatientRecord(id).then((r) => {
@@ -53,16 +48,11 @@ export default async function PatientPage({
     });
 
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, isAuthenticated]);
 
-  if (isLoading) {
-    return (
-      <div className="page">
-        <div className="card panel__inner" style={{ padding: "3rem 1rem", textAlign: "center" }}>
-          <p style={{ color: "var(--ink-soft)" }}>Loading patient record…</p>
-        </div>
-      </div>
-    );
+  // Require authentication
+  if (!isAuthenticated) {
+    return null;
   }
 
   if (error || !patient) {
@@ -194,7 +184,7 @@ export default async function PatientPage({
               </div>
             ) : (
               <div className="timeline">
-                {entries?.map((e) => (
+                {entries.map((e) => (
                   <div key={e.id} className="timeline-item">
                     <div className="timeline-item__top">
                       <span className="timeline-item__label">{e.document_class?.replace(/_/g, " ") || "Entry"}</span>
