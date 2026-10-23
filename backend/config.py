@@ -65,6 +65,11 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @property
+    def is_production(self) -> bool:
+        """True when running with secure cookies (HTTPS) enabled."""
+        return self.session_cookie_secure
+
+    @property
     def resolved_backend(self) -> str:
         """Determines active model backend based on key presence and explicit setting."""
         choice = self.model_backend.strip().lower()
@@ -92,6 +97,20 @@ class Settings(BaseSettings):
         if self.resolved_backend == "cloud" and key:
             return {"Authorization": f"Bearer {key}"}
         return {}
+
+    def validate_security(self) -> list[str]:
+        """Validate security-critical settings.
+
+        Returns a list of error messages. Empty list means all checks pass.
+        """
+        errors: list[str] = []
+        if self.is_production and not self.session_secret_key:
+            errors.append(
+                "SESSION_SECRET_KEY must be set when running with secure cookies "
+                "(production). Generate one with: python -c 'import secrets; "
+                "print(secrets.token_urlsafe(32))'"
+            )
+        return errors
 
 
 @lru_cache

@@ -20,11 +20,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from backend.auth.audit import audit
 from backend.auth.csrf import generate_csrf_token, set_csrf_cookie
 from backend.auth.password import hash_password, verify_password
+from backend.auth.rate_limit import rate_limiter
 from backend.auth.session import (
     cleanup_expired_sessions,
     create_session,
@@ -37,6 +38,58 @@ from backend.auth.session import (
 from backend.config import settings
 from backend.db import session as db_session
 
+# Common passwords that should be rejected (OWASP top 1000 subset)
+_COMMON_PASSWORDS = {
+    "password",
+    "123456",
+    "12345678",
+    "123456789",
+    "1234567890",
+    "qwerty",
+    "abc123",
+    "monkey",
+    "dragon",
+    "master",
+    "login",
+    "welcome",
+    "admin",
+    "letmein",
+    "football",
+    "iloveyou",
+    "starwars",
+    "access",
+    "flower",
+    "passw0rd",
+    "trustno1",
+    "sunshine",
+    "princess",
+    "test",
+    "testing",
+    "test123",
+    "admin123",
+    "root",
+    "toor",
+    "changeit",
+    "changeme",
+    "default",
+    "guest",
+    "user",
+    "demo",
+}
+
+
+def _validate_password(value: str) -> str:
+    """Validate a password: not empty, meets minimum length, not common."""
+    if not value or not value.strip():
+        raise ValueError("Password must not be empty")
+    if len(value) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if value.strip().lower() in _COMMON_PASSWORDS:
+        raise ValueError(
+            "Password is too common; please choose a less guessable password"
+        )
+    return value
+
 router = APIRouter(tags=["auth"])
 
 
@@ -48,6 +101,11 @@ router = APIRouter(tags=["auth"])
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password(cls, v: str) -> str:
+        return _validate_password(v)
 
 
 class LoginResponse(BaseModel):
@@ -72,6 +130,11 @@ class CreateUserRequest(BaseModel):
     full_name: str | None = None
     role: str = Field(default="clinician", pattern="^(administrator|clinician)$")
 
+    @field_validator("password")
+    @classmethod
+    def _validate_password(cls, v: str) -> str:
+        return _validate_password(v)
+
 
 class UpdateUserRequest(BaseModel):
     is_active: bool | None = None
@@ -82,8 +145,6 @@ class UpdateUserRequest(BaseModel):
 class PatientAccessRequest(BaseModel):
     user_id: str
     patient_id: str
-
-
 class PatientAccessResponse(BaseModel):
     id: str
     user_id: str
@@ -159,7 +220,32 @@ def login(
 
     Returns a session cookie. Generic error messages are used to avoid
     account enumeration.
+
+    Rate-limited by (IP address, email) to prevent brute-force attacks.
+    Returns HTTP 429 with Retry-After header when the limit is exceeded.
     """
+    ip_address = request.client.host if request.client else "unknown"
+    email = payload.email.lower().strip()
+
+    # Check rate limit before doing anything else
+    is_limited, retry_after = rate_limiter.is_rate_limited(ip_address, email)
+    if is_limited:
+        retry_after_int = int(retry_after) if retry_after is not None else 0
+        audit(
+            None,  # No DB session for rate-limited attempts
+            action="login",
+            actor_email=email,
+            outcome="failure",
+            detail="Rate limited",
+            ip_address=ip_address,
+            user_agent=request.headers.get("user-agent"),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+            headers={"Retry-After": str(retry_after_int)},
+        )
+
     with db_session() as con:
         # Generic delay to mitigate timing attacks
         row = con.execute(
@@ -174,34 +260,48 @@ def login(
         if not password_valid:
             # Still create a fake session lookup to keep timing similar
             _ = hash_token("dummy")
+            rate_limiter.record_failure(ip_address, email)
+            # Re-check lockout after recording failure
+            is_limited_now, retry_after_now = rate_limiter.is_rate_limited(
+                ip_address, email
+            )
             audit(
                 con,
                 action="login",
                 actor_email=payload.email,
                 outcome="failure",
                 detail="Invalid credentials",
-                ip_address=request.client.host if request.client else None,
+                ip_address=ip_address,
                 user_agent=request.headers.get("user-agent"),
             )
+            headers: dict[str, str] = {}
+            if is_limited_now and retry_after_now is not None:
+                headers["Retry-After"] = str(int(retry_after_now))
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
+                headers=headers,
             )
 
         user = dict(row)
+        # Revoke all existing sessions for this user to prevent session fixation.
+        # An attacker could have set a session cookie before login; revoking all
+        # prior sessions ensures only the newly created session is valid.
+        revoke_all_sessions_for_user(con, user["id"])
+        rate_limiter.record_success(ip_address, email)
         audit(
             con,
             action="login",
             actor_id=user["id"],
             actor_email=user["email"],
             outcome="success",
-            ip_address=request.client.host if request.client else None,
+            ip_address=ip_address,
             user_agent=request.headers.get("user-agent"),
         )
         token = create_session(
             con,
             user_id=user["id"],
-            ip_address=request.client.host if request.client else None,
+            ip_address=ip_address,
             user_agent=request.headers.get("user-agent"),
         )
 

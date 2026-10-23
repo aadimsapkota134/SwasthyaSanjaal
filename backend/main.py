@@ -53,6 +53,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_db()
     with session() as con:
         seed_all(con)
+    # Validate security-critical settings before serving
+    security_errors = settings.validate_security()
+    if security_errors:
+        for err in security_errors:
+            print(f"SECURITY ERROR: {err}", file=__import__("sys").stderr)
+        raise RuntimeError(
+            "Security configuration invalid: " + "; ".join(security_errors)
+        )
     try:
         from backend.nlp.lexicon import reset_lexicon_cache
         reset_lexicon_cache()

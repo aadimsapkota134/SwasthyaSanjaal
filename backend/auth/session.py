@@ -2,12 +2,13 @@
 
 Sessions are stored in SQLite with a hash of the session token (never the
 raw token). Session identifiers are generated using Python's secrets module
-for cryptographic randomness.
+for cryptographic randomness, mixed with the configured secret key.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -17,8 +18,18 @@ from backend.db import session as db_session
 
 
 def generate_session_token() -> str:
-    """Generate a cryptographically random session token."""
-    return secrets.token_urlsafe(32)
+    """Generate a cryptographically random session token.
+
+    The token is mixed with the configured session secret key via HMAC so
+    that the token cannot be forged without knowing the secret.
+    """
+    random_bytes = secrets.token_bytes(32)
+    secret = settings.session_secret_key.encode()
+    if secret:
+        token = hmac.new(secret, random_bytes, hashlib.sha256).hexdigest()
+    else:
+        token = random_bytes.hex()
+    return token
 
 
 def hash_token(token: str) -> str:
