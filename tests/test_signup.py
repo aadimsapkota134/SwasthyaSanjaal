@@ -37,11 +37,16 @@ def test_signup_individual_success():
     assert "user_id" in data
     assert settings.session_cookie_name in response.cookies
 
-    # User can immediately access patients because demo access was granted
+    # Individual is blocked from provider patient directory (403 Forbidden)
     patients_resp = client.get("/api/v1/patients", cookies=response.cookies)
-    assert patients_resp.status_code == 200
-    patients = patients_resp.json()
-    assert len(patients) >= 3
+    assert patients_resp.status_code == 403
+
+    # But individual can access their own personal record via /me/patient
+    my_patient_resp = client.get("/api/v1/me/patient", cookies=response.cookies)
+    assert my_patient_resp.status_code == 200
+    my_patient = my_patient_resp.json()
+    assert my_patient["name"] == "Sita Thapa"
+    assert "sanjaal_id" in my_patient
 
 
 def test_signup_clinician_success():

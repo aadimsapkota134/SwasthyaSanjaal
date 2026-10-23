@@ -10,7 +10,12 @@ import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
 from backend.auth.audit import audit
-from backend.auth.router import require_admin, require_auth
+from backend.auth.router import (
+    require_admin,
+    require_auth,
+    require_clinician_or_admin,
+    require_individual,
+)
 from backend.db import session as db_session
 from backend.nlp.lexicon import Lexicon, get_lexicon
 from backend.record import entries as record
@@ -221,7 +226,7 @@ def _build_patient_detail(patient: sqlite3.Row, con: sqlite3.Connection, lexicon
 
 @router.get("/patients", response_model=list[PatientSummary])
 def list_patients(
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_clinician_or_admin),
 ):
     with db_session() as con:
         if current_user.get("role") == "administrator":
@@ -782,3 +787,147 @@ def get_dashboard_summary(
                 "notes": [],
             },
         }
+
+
+@router.get("/me/patient", response_model=PatientDetail)
+def get_my_patient(
+    current_user: dict = Depends(require_auth),
+) -> PatientDetail:
+    """Return the personal patient record associated with the authenticated individual.
+
+    The patient identity is derived strictly server-side from non-revoked patient_access.
+    """
+    lexicon = get_lexicon()
+    with db_session() as con:
+        row = con.execute(
+            """
+            SELECT p.* FROM patients p
+            JOIN patient_access pa ON pa.patient_id = p.id
+            WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+            ORDER BY pa.granted_at ASC LIMIT 1
+            """,
+            {"user_id": current_user["user_id"]},
+        ).fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="No patient profile found for this account",
+            )
+        return _build_patient_detail(row, con, lexicon)
+
+
+@router.get("/me/reports", response_model=list[RecordEntrySummary])
+def get_my_reports(
+    current_user: dict = Depends(require_auth),
+) -> list[RecordEntrySummary]:
+    """Return only clinical reports and documents belonging to the authenticated individual."""
+    lexicon = get_lexicon()
+    with db_session() as con:
+        pat = con.execute(
+            """
+            SELECT p.id FROM patients p
+            JOIN patient_access pa ON pa.patient_id = p.id
+            WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+            ORDER BY pa.granted_at ASC LIMIT 1
+            """,
+            {"user_id": current_user["user_id"]},
+        ).fetchone()
+        if not pat:
+            return []
+        entries = record.list_entries(con, pat["id"])
+        return [_to_summary(row, lexicon) for row in entries]
+
+
+@router.post("/me/reports", response_model=RecordEntryDetail)
+def upload_my_report(
+    payload: CommitEntryRequest,
+    current_user: dict = Depends(require_auth),
+) -> RecordEntryDetail:
+    """Commit a newly extracted report for the authenticated individual.
+
+    The target patient_id is derived strictly server-side, preventing cross-patient manipulation.
+    """
+    lexicon = get_lexicon()
+    with db_session() as con:
+        pat = con.execute(
+            """
+            SELECT p.id FROM patients p
+            JOIN patient_access pa ON pa.patient_id = p.id
+            WHERE pa.user_id = :user_id AND pa.revoked_at IS NULL
+            ORDER BY pa.granted_at ASC LIMIT 1
+            """,
+            {"user_id": current_user["user_id"]},
+        ).fetchone()
+        if not pat:
+            raise HTTPException(
+                status_code=404,
+                detail="No patient profile linked to this account",
+            )
+        patient_id = pat["id"]
+
+        entry_id = record.new_entry_id()
+        icd11 = None
+        icd10 = None
+        for concept in payload.normalized.concepts:
+            if concept.concept_type == "condition" and not concept.negated:
+                if concept.icd11_code:
+                    icd11 = concept.icd11_code
+                if concept.icd10_code:
+                    icd10 = concept.icd10_code
+                if icd11:
+                    break
+
+        encoded_norm = record.encode_normalization(payload.normalized.model_dump())
+        notes_json = (
+            json.dumps(
+                [
+                    n.model_dump()
+                    if hasattr(n, "model_dump")
+                    else (n if isinstance(n, dict) else {"level": "info", "message_np": str(n), "message_en": str(n)})
+                    for n in payload.notes
+                ],
+                ensure_ascii=False,
+            )
+            if payload.notes
+            else None
+        )
+
+        row_data = {
+            "id": entry_id,
+            "patient_id": patient_id,
+            "input_type": payload.input_type,
+            "document_class": payload.document_class,
+            "facility_name": payload.facility_name,
+            "record_date": payload.record_date,
+            "record_date_bs": payload.record_date_bs,
+            "asset_path": payload.asset_path,
+            "raw_transcript": payload.raw_transcript,
+            "corrected_text": payload.corrected_text,
+            "extraction_method": payload.extraction_method,
+            "normalized_json": encoded_norm,
+            "meaning_np": payload.meaning_np,
+            "icd11_code": icd11,
+            "icd10_code": icd10,
+            "icd_link_status": "PENDING_LOCAL_WHO_VERIFICATION" if icd11 else None,
+            "notes_json": notes_json,
+        }
+        record.insert_entry(con, row_data)
+        inserted = record.get_entry(con, entry_id)
+        if not inserted:
+            raise HTTPException(status_code=500, detail="Failed to save report")
+
+        audit(
+            con,
+            action="patient_write",
+            actor_id=current_user["user_id"],
+            actor_email=current_user["email"],
+            resource="record_entry",
+            resource_id=entry_id,
+            patient_id=patient_id,
+            outcome="success",
+            detail=f"Individual added report: {entry_id}",
+            ip_address=None,
+            user_agent=None,
+        )
+        return _to_detail(inserted, lexicon)
+

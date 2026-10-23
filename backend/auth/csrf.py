@@ -37,6 +37,7 @@ class CsrfMiddleware(BaseHTTPMiddleware):
             "/api/v1/intake/",
             "/api/v1/patients/",
             "/api/v1/entries/",
+            "/api/v1/me/",
             "/api/v1/eval/",
             "/api/v1/admin/",
         }

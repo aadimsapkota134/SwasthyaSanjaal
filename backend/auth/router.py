@@ -245,6 +245,57 @@ async def require_admin(
     return current_user
 
 
+async def require_clinician_or_admin(
+    current_user: dict[str, Any] = Depends(require_auth),
+) -> dict[str, Any]:
+    """Require clinician or administrator role. Raises 403 if user is an individual."""
+    if current_user.get("role") not in {"clinician", "administrator"}:
+        from backend.db import session as db_session
+
+        with db_session() as con:
+            audit(
+                con,
+                action="auth_failure",
+                actor_id=current_user["user_id"],
+                actor_email=current_user["email"],
+                outcome="failure",
+                detail="Healthcare provider access required",
+                ip_address=None,
+                user_agent=None,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Healthcare provider access required. Individuals should use the personal health portal.",
+        )
+    return current_user
+
+
+async def require_individual(
+    current_user: dict[str, Any] = Depends(require_auth),
+) -> dict[str, Any]:
+    """Require individual role. Raises 403 if user is not an individual."""
+    if current_user.get("role") != "individual":
+        from backend.db import session as db_session
+
+        with db_session() as con:
+            audit(
+                con,
+                action="auth_failure",
+                actor_id=current_user["user_id"],
+                actor_email=current_user["email"],
+                outcome="failure",
+                detail="Individual account required",
+                ip_address=None,
+                user_agent=None,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Individual account required for personal health portal.",
+        )
+    return current_user
+
+
+
 # ---------------------------------------------------------------------------
 # Auth endpoints
 # ---------------------------------------------------------------------------
@@ -426,22 +477,57 @@ def signup(
             },
         )
 
-        # Grant patient_access to synthetic demo patients so the account can immediately use the app
-        demo_patients = con.execute("SELECT id FROM patients").fetchall()
-        for p in demo_patients:
+        if role == "individual":
+            # For individuals, create a dedicated patient record linked to them
+            patient_id = f"pat_{secrets.token_urlsafe(12)}"
+            name = payload.full_name.strip() if payload.full_name else email.split("@")[0].capitalize()
+            sanjaal_id = f"SANJAAL-{secrets.token_hex(4).upper()}"
+            sanchai_id = f"SANCHAI-{secrets.token_hex(4).upper()}"
+            qr_token = secrets.token_urlsafe(16)
+            con.execute(
+                """
+                INSERT INTO patients (id, name, sanjaal_id, sanchai_id, qr_token, lang_pref)
+                VALUES (:id, :name, :sanjaal_id, :sanchai_id, :qr_token, 'ne')
+                """,
+                {
+                    "id": patient_id,
+                    "name": name,
+                    "sanjaal_id": sanjaal_id,
+                    "sanchai_id": sanchai_id,
+                    "qr_token": qr_token,
+                },
+            )
             access_id = secrets.token_urlsafe(16)
             con.execute(
                 """
-                INSERT OR IGNORE INTO patient_access (id, user_id, patient_id, granted_by, granted_at)
-                VALUES (:id, :user_id, :patient_id, NULL, :granted_at)
+                INSERT INTO patient_access (id, user_id, patient_id, granted_by, granted_at)
+                VALUES (:id, :user_id, :patient_id, :user_id, :granted_at)
                 """,
                 {
                     "id": access_id,
                     "user_id": user_id,
-                    "patient_id": p["id"],
+                    "patient_id": patient_id,
                     "granted_at": now_iso,
                 },
             )
+        else:
+            # Grant clinician patient_access to synthetic demo patients
+            demo_patients = con.execute("SELECT id FROM patients").fetchall()
+            for p in demo_patients:
+                access_id = secrets.token_urlsafe(16)
+                con.execute(
+                    """
+                    INSERT OR IGNORE INTO patient_access (id, user_id, patient_id, granted_by, granted_at)
+                    VALUES (:id, :user_id, :patient_id, NULL, :granted_at)
+                    """,
+                    {
+                        "id": access_id,
+                        "user_id": user_id,
+                        "patient_id": p["id"],
+                        "granted_at": now_iso,
+                    },
+                )
+
 
         audit(
             con,
